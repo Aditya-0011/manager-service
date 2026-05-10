@@ -1,0 +1,54 @@
+name: Publish and deploy Manager Service
+
+on:
+  workflow_dispatch: # Pipeline disabled for now, can only be triggered manually
+  # push:
+  #   branches:
+  #     - main
+
+jobs:
+  deploy-server:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.25"
+
+      - name: Configure Git for Private Modules
+        run: |
+          git config --global url."https://${{ secrets.PAT_TOKEN }}:x-oauth-basic@github.com/Aditya-0011".insteadOf "https://github.com/Aditya-0011"
+
+      - name: Fetch Dependencies and Build Manager
+        env:
+          GOPRIVATE: "github.com/Aditya-0011/*"
+        run: |
+          go get github.com/Aditya-0011/common/contracts/go@latest
+          go mod tidy
+          GOOS=linux GOARCH=arm64 go build -ldflags "-s -w" -o manager main.go
+
+      - name: Copy server to VM
+        if: success()
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.VM_IP }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_KEY }}
+          port: 22
+          source: "./manager"
+          target: "~/manager-service"
+
+      - name: Server Setup
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.VM_IP }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_KEY }}
+          port: 22
+          script: |
+            cd ~/manager-service
+            ./move.sh
