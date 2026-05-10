@@ -18,6 +18,8 @@ create table if not exists portfolio.message (
     messages_count int not null default 1
 );
 
+create index idx_message_userId on portfolio.message(userId);
+
 create or replace function portfolio.delete_messages(
     in p_id uuid, 
     in p_userId int, 

@@ -18,18 +18,21 @@ create table if not exists portfolio.technology (
     category smallint not null,
     updatedAt timestamptz default now()
 );
+create index idx_technology_userId on portfolio.technology(userId);
 
 create table if not exists portfolio.technology_project(
     technologyId int not null,
     projectId int not null,
     primary key(projectId, technologyId)
 );
+create index idx_technology_project_technologyId on portfolio.technology_project(technologyId);
 
 create table if not exists portfolio.technology_experience(
     technologyId int not null,
     experienceId int not null,
     primary key(experienceId, technologyId)
 );
+create index idx_technology_experience_technologyId on portfolio.technology_experience(technologyId);
 
 create or replace function portfolio.edit_technology(
     in p_id int, 

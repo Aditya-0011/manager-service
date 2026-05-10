@@ -33,6 +33,7 @@ create table if not exists portfolio.position(
     end varchar(100),
     workDone text not null
 );
+create index idx_position_experienceId on portfolio.position(experienceId);
 
 create table if not exists portfolio.experience(
     id int generated always as identity primary key,
@@ -43,6 +44,7 @@ create table if not exists portfolio.experience(
     tenure varchar(100),
     updatedAt timestamptz default now()
 );
+create index idx_experience_userId on portfolio.experience(userId);
 
 create type portfolio.position_create as(
     id int,

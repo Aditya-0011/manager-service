@@ -28,12 +28,14 @@ create table if not exists portfolio.project(
     featured boolean not null,
     updatedAt timestamptz default now()
 );
+create index idx_project_userId on portfolio.project(userId);
 
 create table if not exists portfolio.project_position(
     projectId int not null,
     positionId int not null,
     primary key(positionId, projectId)
 );
+create index idx_project_position_projectId on portfolio.project_position(projectId);
 
 create or replace function portfolio.edit_project(
     in p_id int, 
