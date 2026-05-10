@@ -162,6 +162,19 @@ begin
         returning id into v_experience_id;
     end if;
 
+    if p_id > 0 then
+        delete from portfolio.project_position 
+        where positionId in (
+            select id from portfolio.position 
+            where experienceId = v_experience_id 
+            and id <> all( array(select p.id from unnest(p_positions) as p where p.id > 0) )
+        );
+        
+        delete from portfolio.position 
+        where experienceId = v_experience_id 
+        and id <> all( array(select p.id from unnest(p_positions) as p where p.id > 0) );
+    end if;
+
     foreach pos in array p_positions loop
         if pos.end is null or pos.end = '' or pos.end ilike 'present' then
             v_display_end := 'Present';
