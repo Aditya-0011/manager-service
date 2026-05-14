@@ -4,6 +4,7 @@ go 1.25.3
 
 require (
 	buf.build/go/protovalidate v1.2.0
+	github.com/Aditya-0011/common/contracts/go v0.0.0-20260514184603-8b58e13cbbcf
 	github.com/jackc/pgx/v5 v5.9.2
 	google.golang.org/grpc v1.81.0
 	google.golang.org/protobuf v1.36.11
@@ -12,7 +13,6 @@ require (
 require (
 	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.11-20260415201107-50325440f8f2.1 // indirect
 	cel.dev/expr v0.25.1 // indirect
-	github.com/Aditya-0011/common/contracts/go v0.0.0-20260510163733-510fbb559637 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 	github.com/google/cel-go v0.28.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect

@@ -1,10 +1,13 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
+	"manager/controller"
 	"manager/db"
 	"manager/middlewares"
+	"manager/utils"
 	"net"
 	"os"
 	"os/signal"
@@ -12,12 +15,18 @@ import (
 	"time"
 
 	"buf.build/go/protovalidate"
-	//auth "github.com/Aditya-0011/common/contracts/go/auth"
+	manager "github.com/Aditya-0011/common/contracts/go/manager"
 	"google.golang.org/grpc"
 )
 
 func main() {
-	database, err := db.Setup()
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	slog.SetDefault(logger)
+
+	setupCtx, setupCancel := context.WithTimeout(context.Background(), utils.TimeoutDuration)
+	defer setupCancel()
+
+	database, err := db.Setup(setupCtx)
 	if err != nil {
 		slog.Error("Failed to setup databases", "error", err)
 		os.Exit(1)
@@ -43,22 +52,33 @@ func main() {
 
 	s := grpc.NewServer(grpc.UnaryInterceptor(middlewares.ValidationInterceptor(validator)))
 
-	// auth.RegisterAuthServiceServer(s, controller.NewServer(controller.ServerParams{
-	// 	Postgres: database.Postgres,
-	// }))
+	manager.RegisterUserServiceServer(s, controller.NewUserServer(controller.UserServerParams{
+		Postgres: database.Postgres,
+	}))
+
+	manager.RegisterPortfolioServiceServer(s, controller.NewPortfolioServer(controller.PortfolioServerParams{
+		Postgres: database.Postgres,
+	}))
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 
+	errChan := make(chan error, 1)
+
 	go func() {
 		slog.Info("gRPC server listening", "address", lis.Addr())
 		if err := s.Serve(lis); err != nil {
-			slog.Error("Server error", "error", err)
+			errChan <- err
 		}
 	}()
 
-	<-quit
-	slog.Info("Interrupt received. Starting graceful shutdown...")
+	select {
+	case <-quit:
+		slog.Info("Interrupt received. Starting graceful shutdown...")
+	case err := <-errChan:
+		slog.Error("gRPC server failed", "error", err)
+		slog.Info("Starting graceful shutdown due to server error...")
+	}
 
 	stopped := make(chan struct{})
 	go func() {
