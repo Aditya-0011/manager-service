@@ -1,4 +1,4 @@
-package controller
+package portfolio
 
 import (
 	"manager/db"

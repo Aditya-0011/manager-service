@@ -35,3 +35,15 @@ exception
     when others then outcode := 2;
 end;
 $$ language plpgsql security definer;
+
+revoke insert, update, delete on table 
+    portfolio.user
+from manager_service;
+
+grant select on table 
+    portfolio.user
+to manager_service;
+
+grant execute on function 
+    portfolio.edit_user(int, text, varchar)
+to manager_service;

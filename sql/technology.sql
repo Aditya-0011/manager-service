@@ -81,3 +81,20 @@ exception
     when others then outcode := 2;
 end;
 $$ language plpgsql security definer;
+
+revoke insert, update, delete on table
+    portfolio.technology, 
+    portfolio.technology_project, 
+    portfolio.technology_experience
+from manager_service;
+
+grant select on table
+    portfolio.technology, 
+    portfolio.technology_project, 
+    portfolio.technology_experience
+to manager_service;
+
+grant execute on function 
+    portfolio.edit_technology(int, int, varchar, varchar, varchar, smallint)
+    portfolio.delete_technology(int, int)
+to manager_service;

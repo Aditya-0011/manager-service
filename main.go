@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"buf.build/go/protovalidate"
-	manager "github.com/Aditya-0011/common/contracts/go/manager"
 	"google.golang.org/grpc"
 )
 
@@ -52,13 +51,7 @@ func main() {
 
 	s := grpc.NewServer(grpc.UnaryInterceptor(middlewares.ValidationInterceptor(validator)))
 
-	manager.RegisterUserServiceServer(s, controller.NewUserServer(controller.UserServerParams{
-		Postgres: database.Postgres,
-	}))
-
-	manager.RegisterPortfolioServiceServer(s, controller.NewPortfolioServer(controller.PortfolioServerParams{
-		Postgres: database.Postgres,
-	}))
+	controller.Setup(s, database)
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
