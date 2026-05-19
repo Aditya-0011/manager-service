@@ -8,6 +8,7 @@ import (
 	"time"
 
 	manager "github.com/Aditya-0011/common/contracts/go/manager"
+	"github.com/jackc/pgx/v5"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -40,9 +41,13 @@ func (us *userServer) GetUserDetails(c context.Context, req *manager.SimpleReque
 		updatedAt  time.Time
 	)
 
-	query := `select about, coverImage, updatedAt from portfolio.user where id = $1`
+	query := `select about, coverImage, updatedAt from portfolio.user where id = @id`
 
-	err := us.postgres.Pool.QueryRow(ctx, query, req.GetUserId()).Scan(&about, &coverImage, &updatedAt)
+	queryParams := pgx.NamedArgs{
+		"id": req.GetUserId(),
+	}
+
+	err := us.postgres.Pool.QueryRow(ctx, query, queryParams).Scan(&about, &coverImage, &updatedAt)
 	if err != nil {
 		slog.Error("error querying database", "userId", req.GetUserId(), "error", err)
 		return nil, status.Errorf(codes.Internal, "internal server error")
@@ -65,7 +70,15 @@ func (us *userServer) EditUserDetails(c context.Context, req *manager.EditUserDe
 
 	var outcode int8
 
-	err := us.postgres.Pool.QueryRow(ctx, "select * from portfolio.edit_user($1, $2, $3)", req.GetUserId(), req.GetAbout(), req.GetCoverImage()).Scan(&outcode)
+	query := `select outcode from portfolio.edit_user(@id, @about, @coverImage)`
+
+	queryParams := pgx.NamedArgs{
+		"id":         req.GetUserId(),
+		"about":      req.GetAbout(),
+		"coverImage": req.GetCoverImage(),
+	}
+
+	err := us.postgres.Pool.QueryRow(ctx, query, queryParams).Scan(&outcode)
 	if err != nil {
 		slog.Error("error creating user", "userId", req.GetUserId(), "error", err)
 		return nil, status.Errorf(codes.Internal, "error updating user")

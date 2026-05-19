@@ -1,7 +1,7 @@
 package lib
 
 type PositionCreate struct {
-	ID       int32   `db:"id"`
+	Id       int32   `db:"id"`
 	Role     string  `db:"role"`
 	Start    string  `db:"start"`
 	End      *string `db:"end"`

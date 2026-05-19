@@ -6,6 +6,7 @@ import (
 	"manager/utils"
 
 	manager "github.com/Aditya-0011/common/contracts/go/manager"
+	"github.com/jackc/pgx/v5"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -14,9 +15,13 @@ func (ps *portfolioServer) GetMessages(c context.Context, req *manager.SimpleReq
 	ctx, cancel := context.WithTimeout(c, utils.TimeoutDuration)
 	defer cancel()
 
-	query := `select id, name, email, messages from portfolio.message where userId = $1`
+	query := `select id, name, email, messages from portfolio.message where userId = @userId`
 
-	rows, err := ps.postgres.Pool.Query(ctx, query, req.GetUserId())
+	queryParams := pgx.NamedArgs{
+		"userId": req.GetUserId(),
+	}
+
+	rows, err := ps.postgres.Pool.Query(ctx, query, queryParams)
 	if err != nil {
 		slog.Error("error querying database", "userId", req.GetUserId(), "error", err)
 		return nil, status.Errorf(codes.Internal, "internal server error")
@@ -64,10 +69,18 @@ func (ps *portfolioServer) AddMessage(c context.Context, req *manager.AddMessage
 	ctx, cancel := context.WithTimeout(c, utils.TimeoutDuration)
 	defer cancel()
 
-	query := `select * from portfolio.add_message($1, $2, $3, $4)`
+	query := `select outcode from portfolio.add_message(@userId, @name, @email, @message)`
+
+	queryParams := pgx.NamedArgs{
+		"userId":  req.GetUserId(),
+		"name":    req.GetName(),
+		"email":   req.GetEmail(),
+		"message": req.GetMessage(),
+	}
 
 	var outcode int8
-	err := ps.postgres.Pool.QueryRow(ctx, query, req.GetUserId(), req.GetName(), req.GetEmail(), req.GetMessage()).Scan(&outcode)
+
+	err := ps.postgres.Pool.QueryRow(ctx, query, queryParams).Scan(&outcode)
 	if err != nil {
 		slog.Error("error querying database", "userId", req.GetUserId(), "error", err)
 		return nil, status.Errorf(codes.Internal, "internal server error")
@@ -90,12 +103,17 @@ func (ps *portfolioServer) DeleteMessage(c context.Context, req *manager.DeleteM
 	ctx, cancel := context.WithTimeout(c, utils.TimeoutDuration)
 	defer cancel()
 
-	query := `select * from portfolio.delete_messages($1, $2)`
+	query := `select outcode from portfolio.delete_messages(@id, @userId)`
+
+	queryParams := pgx.NamedArgs{
+		"id":     req.GetId(),
+		"userId": req.GetUserId(),
+	}
 
 	var outcode int8
-	err := ps.postgres.Pool.QueryRow(ctx, query, req.GetId(), req.GetUserId()).Scan(&outcode)
+	err := ps.postgres.Pool.QueryRow(ctx, query, queryParams).Scan(&outcode)
 	if err != nil {
-		slog.Error("error scanning rows", "messageId", req.GetId(), "userId", req.GetUserId(), "error", err)
+		slog.Error("error querying database", "messageId", req.GetId(), "userId", req.GetUserId(), "error", err)
 		return nil, status.Errorf(codes.Internal, "internal server error")
 	}
 

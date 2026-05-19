@@ -7,6 +7,7 @@ import (
 	"time"
 
 	manager "github.com/Aditya-0011/common/contracts/go/manager"
+	"github.com/jackc/pgx/v5"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -32,11 +33,15 @@ func (ps *portfolioServer) GetProjects(c context.Context, req *manager.SimpleReq
 	from portfolio.project p
 	left join portfolio.technology_project tp on p.id = tp.projectId
 	left join portfolio.technology t on tp.technologyId = t.id
-	where p.userId = $1
+	where p.userId = @userId
 	group by p.id
 	`
 
-	rows, err := ps.postgres.Pool.Query(ctx, query, req.GetUserId())
+	queryParams := pgx.NamedArgs{
+		"userId": req.GetUserId(),
+	}
+
+	rows, err := ps.postgres.Pool.Query(ctx, query, queryParams)
 
 	if err != nil {
 		slog.Error("error querying database", "userId", req.GetUserId(), "error", err)
@@ -96,23 +101,33 @@ func (ps *portfolioServer) CreateProject(c context.Context, req *manager.Project
 	ctx, cancel := context.WithTimeout(c, utils.TimeoutDuration)
 	defer cancel()
 
-	query := `select * from portfolio.edit_project($1, $2, $3, $4, $5, $6, $7, $8, $9)`
+	query := `select outcode from portfolio.edit_project(
+				@id, 
+				@userId, 
+				@name, 
+				@description, 
+				@imageUrl, 
+				@projectUrl, 
+				@githubUrl, 
+				@featured,
+				@technologies
+			  )`
+
+	queryParams := pgx.NamedArgs{
+		"id":           -1,
+		"userId":       req.GetUserId(),
+		"name":         req.GetName(),
+		"description":  req.GetDescription(),
+		"imageUrl":     req.GetImageUrl(),
+		"projectUrl":   req.GetProjectUrl(),
+		"githubUrl":    req.GetGithubUrl(),
+		"featured":     req.GetFeatured(),
+		"technologies": req.GetTechnologies(),
+	}
 
 	var outcode int8
 
-	err := ps.postgres.Pool.QueryRow(
-		ctx,
-		query,
-		-1,
-		req.GetUserId(),
-		req.GetName(),
-		req.GetDescription(),
-		req.GetImageUrl(),
-		req.GetProjectUrl(),
-		req.GetGithubUrl(),
-		req.GetFeatured(),
-		req.GetTechnologies(),
-	).Scan(&outcode)
+	err := ps.postgres.Pool.QueryRow(ctx, query, queryParams).Scan(&outcode)
 	if err != nil {
 		slog.Error("error querying database", "userId", req.GetUserId(), "error", err)
 		return nil, status.Errorf(codes.Internal, "internal server error")
@@ -132,23 +147,33 @@ func (ps *portfolioServer) UpdateProject(c context.Context, req *manager.Project
 	ctx, cancel := context.WithTimeout(c, utils.TimeoutDuration)
 	defer cancel()
 
-	query := `select * from portfolio.edit_project($1, $2, $3, $4, $5, $6, $7, $8, $9)`
+	query := `select outcode from portfolio.edit_project(
+				@id, 
+				@userId, 
+				@name, 
+				@description, 
+				@imageUrl, 
+				@projectUrl, 
+				@githubUrl, 
+				@featured,
+				@technologies
+			  )`
+
+	queryParams := pgx.NamedArgs{
+		"id":           req.GetId(),
+		"userId":       req.GetUserId(),
+		"name":         req.GetName(),
+		"description":  req.GetDescription(),
+		"imageUrl":     req.GetImageUrl(),
+		"projectUrl":   req.GetProjectUrl(),
+		"githubUrl":    req.GetGithubUrl(),
+		"featured":     req.GetFeatured(),
+		"technologies": req.GetTechnologies(),
+	}
 
 	var outcode int8
 
-	err := ps.postgres.Pool.QueryRow(
-		ctx,
-		query,
-		req.GetId(),
-		req.GetUserId(),
-		req.GetName(),
-		req.GetDescription(),
-		req.GetImageUrl(),
-		req.GetProjectUrl(),
-		req.GetGithubUrl(),
-		req.GetFeatured(),
-		req.GetTechnologies(),
-	).Scan(&outcode)
+	err := ps.postgres.Pool.QueryRow(ctx, query, queryParams).Scan(&outcode)
 	if err != nil {
 		slog.Error("error querying database", "projectId", req.GetId(), "userId", req.GetUserId(), "error", err)
 		return nil, status.Errorf(codes.Internal, "internal server error")
@@ -170,11 +195,16 @@ func (ps *portfolioServer) DeleteProject(c context.Context, req *manager.DeleteR
 	ctx, cancel := context.WithTimeout(c, utils.TimeoutDuration)
 	defer cancel()
 
-	query := `select * from portfolio.delete_project($1, $2)`
+	query := `select outcode from portfolio.delete_project(@id, @userId)`
+
+	queryParams := pgx.NamedArgs{
+		"id":     req.GetId(),
+		"userId": req.GetUserId(),
+	}
 
 	var outcode int8
 
-	err := ps.postgres.Pool.QueryRow(ctx, query, req.GetId(), req.GetUserId()).Scan(&outcode)
+	err := ps.postgres.Pool.QueryRow(ctx, query, queryParams).Scan(&outcode)
 	if err != nil {
 		slog.Error("error querying database", "projectId", req.GetId(), "userId", req.GetUserId(), "error", err)
 		return nil, status.Errorf(codes.Internal, "internal server error")
