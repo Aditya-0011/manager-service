@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"time"
+	"manager/utils"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -15,7 +15,7 @@ type PostgresParams struct {
 }
 
 func connectPostgres(c context.Context, url string) (*PostgresParams, error) {
-	ctx, cancel := context.WithTimeout(c, 5*time.Second)
+	ctx, cancel := context.WithTimeout(c, utils.TimeoutDuration)
 	defer cancel()
 
 	config, err := pgxpool.ParseConfig(url)
