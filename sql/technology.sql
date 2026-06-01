@@ -95,6 +95,6 @@ grant select on table
 to manager_service;
 
 grant execute on function 
-    portfolio.edit_technology(int, int, varchar, varchar, varchar, smallint)
+    portfolio.edit_technology(int, int, varchar, varchar, varchar, int),
     portfolio.delete_technology(int, int)
 to manager_service;
