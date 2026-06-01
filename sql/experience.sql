@@ -30,7 +30,7 @@ create table if not exists portfolio.position(
     experienceId int not null,
     role varchar(150) not null,
     start varchar(100) not null,
-    end varchar(100),
+    "end" varchar(100),
     workDone text not null
 );
 create index idx_position_experienceId on portfolio.position(experienceId);
@@ -40,7 +40,7 @@ create table if not exists portfolio.experience(
     userId int not null,
     company varchar(200) not null,
     start varchar(100) not null,
-    end varchar(100),
+    "end" varchar(100),
     tenure varchar(100),
     updatedAt timestamptz default now()
 );
@@ -50,7 +50,7 @@ create type portfolio.position_create as(
     id int,
     role varchar(150),
     start varchar(100),
-    end varchar(100),
+    "end" varchar(100),
     workDone text,
     projects int[]
 );
