@@ -69,6 +69,9 @@ func (ps *portfolioServer) GetExperiences(c context.Context, req *manager.Simple
 
 	rows, err := ps.postgres.Pool.Query(ctx, query, queryParams)
 	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, status.Errorf(codes.NotFound, "experiences not found")
+		}
 		slog.Error("error querying database", "userId", req.GetUserId(), "error", err)
 		return nil, status.Errorf(codes.Internal, "internal server error")
 	}

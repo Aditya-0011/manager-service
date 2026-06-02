@@ -49,12 +49,11 @@ func (us *userServer) GetUserDetails(c context.Context, req *manager.SimpleReque
 
 	err := us.postgres.Pool.QueryRow(ctx, query, queryParams).Scan(&about, &coverImage, &updatedAt)
 	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, status.Errorf(codes.NotFound, "user not found")
+		}
 		slog.Error("error querying database", "userId", req.GetUserId(), "error", err)
 		return nil, status.Errorf(codes.Internal, "internal server error")
-	}
-
-	if about == "" || coverImage == "" || updatedAt.IsZero() {
-		return nil, status.Errorf(codes.NotFound, "data not found")
 	}
 
 	return &manager.GetUserDetailsResponse{

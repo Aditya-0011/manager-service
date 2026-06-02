@@ -34,6 +34,9 @@ func (ps *portfolioServer) GetTechnologies(c context.Context, req *manager.Simpl
 	rows, err := ps.postgres.Pool.Query(ctx, query, queryParams)
 
 	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, status.Errorf(codes.NotFound, "technologies not found")
+		}
 		slog.Error("error querying database", "userId", req.GetUserId(), "error", err)
 		return nil, status.Errorf(codes.Internal, "internal server error")
 	}
