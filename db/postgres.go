@@ -24,11 +24,17 @@ func connectPostgres(c context.Context, url string) (*PostgresParams, error) {
 	}
 
 	config.AfterConnect = func(ct context.Context, conn *pgx.Conn) error {
-		dt, err := conn.LoadType(ct, "portfolio.position_create")
-		if err != nil {
-			return err
+		typeNames := []string{
+			"portfolio.position_create",
+			"portfolio._position_create",
 		}
-		conn.TypeMap().RegisterType(dt)
+		for _, name := range typeNames {
+			dt, err := conn.LoadType(ct, name)
+			if err != nil {
+				return err
+			}
+			conn.TypeMap().RegisterType(dt)
+		}
 		return nil
 	}
 

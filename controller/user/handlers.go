@@ -50,10 +50,10 @@ func (us *userServer) GetUserDetails(c context.Context, req *manager.SimpleReque
 	err := us.postgres.Pool.QueryRow(ctx, query, queryParams).Scan(&about, &coverImage, &updatedAt)
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return nil, status.Errorf(codes.NotFound, "user not found")
+			return nil, status.Errorf(codes.NotFound, "User not found")
 		}
 		slog.Error("error querying database", "userId", req.GetUserId(), "error", err)
-		return nil, status.Errorf(codes.Internal, "internal server error")
+		return nil, status.Errorf(codes.Internal, "Internal server error")
 	}
 
 	return &manager.GetUserDetailsResponse{
@@ -80,13 +80,13 @@ func (us *userServer) EditUserDetails(c context.Context, req *manager.EditUserDe
 	err := us.postgres.Pool.QueryRow(ctx, query, queryParams).Scan(&outcode)
 	if err != nil {
 		slog.Error("error creating user", "userId", req.GetUserId(), "error", err)
-		return nil, status.Errorf(codes.Internal, "error updating user")
+		return nil, status.Errorf(codes.Internal, "Error updating user")
 	}
 
 	switch outcode {
 	case -1:
 		return &manager.SimpleResponse{Message: "User updated successfully"}, nil
 	default:
-		return nil, status.Errorf(codes.Internal, "error updating user")
+		return nil, status.Errorf(codes.Internal, "Error updating user")
 	}
 }

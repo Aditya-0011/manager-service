@@ -77,9 +77,15 @@ declare
     v_parsed_end date;
     v_display_end varchar;
     
+    v_earliest_start_str varchar;
+    v_latest_end_str varchar;
+    
     v_interval interval;
     v_years int;
     v_months int;
+    
+    v_unique_projects int[];
+    v_position_ids int[];
 begin 
     if p_technologies is not null and array_length(p_technologies, 1) > 0 then
         if (select count(id) from portfolio.technology where id = any(p_technologies) and userId = p_userId) != array_length(p_technologies, 1) then
@@ -88,50 +94,82 @@ begin
         end if;
     end if;
 
-    foreach pos in array p_positions loop
-        if pos.id > 0 then
-            if p_id <= 0 then
-                outcode := 1;
-                return;
-            end if;
-            if not exists (select 1 from portfolio.position where id = pos.id and experienceId = p_id) then
-                outcode := 1;
-                return;
-            end if;
+    select array_agg(p.id) into v_position_ids from unnest(p_positions) as p where p.id > 0;
+    
+    if v_position_ids is not null and array_length(v_position_ids, 1) > 0 then
+        if p_id <= 0 then
+            outcode := 1;
+            return;
         end if;
-        
-        if pos.projects is not null and array_length(pos.projects, 1) > 0 then
-            if (select count(id) from portfolio.projects where id = any(pos.projects) and userId = p_userId) != array_length(pos.projects, 1) then
-                outcode := 1;
-                return;
-            end if;
+        if (select count(id) from portfolio.position where id = any(v_position_ids) and experienceId = p_id) != array_length(v_position_ids, 1) then
+            outcode := 1;
+            return;
         end if;
+    end if;
 
-        v_parsed_start := pos.start::date;
+    select array_agg(distinct proj_id) into v_unique_projects
+    from unnest(p_positions) as p, unnest(p.projects) as proj_id;
+    
+    if v_unique_projects is not null and array_length(v_unique_projects, 1) > 0 then
+        if (select count(id) from portfolio.project where id = any(v_unique_projects) and userId = p_userId) != array_length(v_unique_projects, 1) then
+            outcode := 1;
+            return;
+        end if;
+    end if;
+
+    foreach pos in array p_positions loop
+        if length(pos.start) = 7 and pos.start like '____-__' then
+            v_parsed_start := (pos.start || '-01')::date;
+        else
+            v_parsed_start := pos.start::date;
+        end if;
         
-        if pos.end is null or pos.end = '' or pos.end ilike 'present' then
+        if pos."end" is null or pos."end" = '' or pos."end" ilike 'present' then
             v_parsed_end := current_date;
             v_display_end := 'Present';
             v_final_end := 'Present';
         else
-            v_parsed_end := pos.end::date;
-            v_display_end := pos.end;
+            if length(pos."end") = 7 and pos."end" like '____-__' then
+                v_parsed_end := (pos."end" || '-01')::date;
+            else
+                v_parsed_end := pos."end"::date;
+            end if;
+            v_display_end := pos."end";
         end if;
         
         if v_earliest_start is null or v_parsed_start < v_earliest_start then
             v_earliest_start := v_parsed_start;
+            v_earliest_start_str := pos.start;
         end if;
         
         if v_latest_end is null or v_parsed_end > v_latest_end then
             v_latest_end := v_parsed_end;
+            v_latest_end_str := pos."end";
         end if;
     end loop;
     
     if v_final_end != 'Present' then
-        v_final_end := v_latest_end::varchar;
-        v_interval := age(v_latest_end, v_earliest_start);
-        v_years := extract(year from v_interval);
-        v_months := extract(month from v_interval);
+        v_final_end := v_latest_end_str;
+        
+        select count(distinct to_char(m, 'YYYY-MM')) into v_months
+        from (
+            select generate_series(
+                case when length(pos.start) = 7 then (pos.start || '-01')::date else pos.start::date end,
+                least(
+                    case 
+                        when pos."end" is null or pos."end" = '' or pos."end" ilike 'present' then current_date 
+                        when length(pos."end") = 7 then (pos."end" || '-01')::date 
+                        else pos."end"::date 
+                    end,
+                    current_date
+                ),
+                '1 month'::interval
+            ) as m
+            from unnest(p_positions) as pos
+        ) t;
+
+        v_years := v_months / 12;
+        v_months := v_months % 12;
         
         if v_years > 0 then
             v_tenure := v_years || ' yrs ';
@@ -147,7 +185,7 @@ begin
             v_experience_id := p_id;
             update portfolio.experience 
             set company = p_company, 
-                start = v_earliest_start::varchar, 
+                start = v_earliest_start_str, 
                 "end" = v_final_end, 
                 tenure = v_tenure,
                 updatedAt = now()
@@ -158,7 +196,7 @@ begin
         end if;
     else
         insert into portfolio.experience (userId, company, start, "end", tenure) 
-        values (p_userId, p_company, v_earliest_start::varchar, v_final_end, v_tenure) 
+        values (p_userId, p_company, v_earliest_start_str, v_final_end, v_tenure) 
         returning id into v_experience_id;
     end if;
 
@@ -176,10 +214,10 @@ begin
     end if;
 
     foreach pos in array p_positions loop
-        if pos.end is null or pos.end = '' or pos.end ilike 'present' then
+        if pos."end" is null or pos."end" = '' or pos."end" ilike 'present' then
             v_display_end := 'Present';
         else
-            v_display_end := pos.end;
+            v_display_end := pos."end";
         end if;
         
         if pos.id = -1 then

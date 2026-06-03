@@ -24,10 +24,10 @@ func (ps *portfolioServer) GetMessages(c context.Context, req *manager.SimpleReq
 	rows, err := ps.postgres.Pool.Query(ctx, query, queryParams)
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return nil, status.Errorf(codes.NotFound, "messages not found")
+			return nil, status.Errorf(codes.NotFound, "Messages not found")
 		}
 		slog.Error("error querying database", "userId", req.GetUserId(), "error", err)
-		return nil, status.Errorf(codes.Internal, "internal server error")
+		return nil, status.Errorf(codes.Internal, "Internal server error")
 	}
 	defer rows.Close()
 
@@ -43,7 +43,7 @@ func (ps *portfolioServer) GetMessages(c context.Context, req *manager.SimpleReq
 		err := rows.Scan(&id, &name, &email, &messages)
 		if err != nil {
 			slog.Error("error scanning rows", "userId", req.GetUserId(), "error", err)
-			return nil, status.Errorf(codes.Internal, "internal server error")
+			return nil, status.Errorf(codes.Internal, "Internal server error")
 		}
 
 		resMessages = append(resMessages, &manager.Message{
@@ -56,11 +56,11 @@ func (ps *portfolioServer) GetMessages(c context.Context, req *manager.SimpleReq
 
 	if err := rows.Err(); err != nil {
 		slog.Error("error iterating rows", "userId", req.GetUserId(), "error", err)
-		return nil, status.Errorf(codes.Internal, "internal server error")
+		return nil, status.Errorf(codes.Internal, "Internal server error")
 	}
 
 	if len(resMessages) == 0 {
-		return nil, status.Errorf(codes.NotFound, "messages not found")
+		return nil, status.Errorf(codes.NotFound, "Messages not found")
 	}
 
 	return &manager.GetMessagesResponse{
@@ -86,7 +86,7 @@ func (ps *portfolioServer) AddMessage(c context.Context, req *manager.AddMessage
 	err := ps.postgres.Pool.QueryRow(ctx, query, queryParams).Scan(&outcode)
 	if err != nil {
 		slog.Error("error querying database", "userId", req.GetUserId(), "error", err)
-		return nil, status.Errorf(codes.Internal, "internal server error")
+		return nil, status.Errorf(codes.Internal, "Internal server error")
 	}
 
 	switch outcode {
@@ -97,7 +97,7 @@ func (ps *portfolioServer) AddMessage(c context.Context, req *manager.AddMessage
 	case 0:
 		return nil, status.Errorf(codes.Aborted, "You have reached the limit of messages")
 	default:
-		return nil, status.Errorf(codes.Internal, "internal server error")
+		return nil, status.Errorf(codes.Internal, "Internal server error")
 	}
 
 }
@@ -117,7 +117,7 @@ func (ps *portfolioServer) DeleteMessage(c context.Context, req *manager.DeleteM
 	err := ps.postgres.Pool.QueryRow(ctx, query, queryParams).Scan(&outcode)
 	if err != nil {
 		slog.Error("error querying database", "messageId", req.GetId(), "userId", req.GetUserId(), "error", err)
-		return nil, status.Errorf(codes.Internal, "internal server error")
+		return nil, status.Errorf(codes.Internal, "Internal server error")
 	}
 
 	switch outcode {
@@ -126,8 +126,8 @@ func (ps *portfolioServer) DeleteMessage(c context.Context, req *manager.DeleteM
 			Message: "Message deleted successfully",
 		}, nil
 	case 1:
-		return nil, status.Errorf(codes.NotFound, "message not found")
+		return nil, status.Errorf(codes.NotFound, "Message not found")
 	default:
-		return nil, status.Errorf(codes.Internal, "internal server error")
+		return nil, status.Errorf(codes.Internal, "Internal server error")
 	}
 }

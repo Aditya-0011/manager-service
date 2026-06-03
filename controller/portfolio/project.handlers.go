@@ -45,10 +45,10 @@ func (ps *portfolioServer) GetProjects(c context.Context, req *manager.SimpleReq
 
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return nil, status.Errorf(codes.NotFound, "projects not found")
+			return nil, status.Errorf(codes.NotFound, "Projects not found")
 		}
 		slog.Error("error querying database", "userId", req.GetUserId(), "error", err)
-		return nil, status.Errorf(codes.Internal, "internal server error")
+		return nil, status.Errorf(codes.Internal, "Internal server error")
 	}
 	defer rows.Close()
 
@@ -70,7 +70,7 @@ func (ps *portfolioServer) GetProjects(c context.Context, req *manager.SimpleReq
 		err := rows.Scan(&id, &name, &description, &imageUrl, &projectUrl, &githubUrl, &featured, &updatedAt, &technologies)
 		if err != nil {
 			slog.Error("error scanning rows", "userId", req.GetUserId(), "error", err)
-			return nil, status.Errorf(codes.Internal, "internal server error")
+			return nil, status.Errorf(codes.Internal, "Internal server error")
 		}
 
 		resProjects = append(resProjects, &manager.Project{
@@ -88,11 +88,11 @@ func (ps *portfolioServer) GetProjects(c context.Context, req *manager.SimpleReq
 
 	if err := rows.Err(); err != nil {
 		slog.Error("error iterating rows", "userId", req.GetUserId(), "error", err)
-		return nil, status.Errorf(codes.Internal, "internal server error")
+		return nil, status.Errorf(codes.Internal, "Internal server error")
 	}
 
 	if len(resProjects) == 0 {
-		return nil, status.Errorf(codes.NotFound, "technologies not found")
+		return nil, status.Errorf(codes.NotFound, "Technologies not found")
 	}
 
 	return &manager.GetProjectsResponse{
@@ -133,7 +133,7 @@ func (ps *portfolioServer) CreateProject(c context.Context, req *manager.Project
 	err := ps.postgres.Pool.QueryRow(ctx, query, queryParams).Scan(&outcode)
 	if err != nil {
 		slog.Error("error querying database", "userId", req.GetUserId(), "error", err)
-		return nil, status.Errorf(codes.Internal, "internal server error")
+		return nil, status.Errorf(codes.Internal, "Internal server error")
 	}
 
 	switch outcode {
@@ -142,7 +142,7 @@ func (ps *portfolioServer) CreateProject(c context.Context, req *manager.Project
 			Message: "Project created successfully",
 		}, nil
 	default:
-		return nil, status.Errorf(codes.Internal, "internal server error")
+		return nil, status.Errorf(codes.Internal, "Internal server error")
 	}
 }
 
@@ -179,7 +179,7 @@ func (ps *portfolioServer) UpdateProject(c context.Context, req *manager.Project
 	err := ps.postgres.Pool.QueryRow(ctx, query, queryParams).Scan(&outcode)
 	if err != nil {
 		slog.Error("error querying database", "projectId", req.GetId(), "userId", req.GetUserId(), "error", err)
-		return nil, status.Errorf(codes.Internal, "internal server error")
+		return nil, status.Errorf(codes.Internal, "Internal server error")
 	}
 
 	switch outcode {
@@ -188,9 +188,9 @@ func (ps *portfolioServer) UpdateProject(c context.Context, req *manager.Project
 			Message: "Project updated successfully",
 		}, nil
 	case 1:
-		return nil, status.Errorf(codes.NotFound, "project not found")
+		return nil, status.Errorf(codes.NotFound, "Project not found")
 	default:
-		return nil, status.Errorf(codes.Internal, "internal server error")
+		return nil, status.Errorf(codes.Internal, "Internal server error")
 	}
 }
 
@@ -210,7 +210,7 @@ func (ps *portfolioServer) DeleteProject(c context.Context, req *manager.DeleteR
 	err := ps.postgres.Pool.QueryRow(ctx, query, queryParams).Scan(&outcode)
 	if err != nil {
 		slog.Error("error querying database", "projectId", req.GetId(), "userId", req.GetUserId(), "error", err)
-		return nil, status.Errorf(codes.Internal, "internal server error")
+		return nil, status.Errorf(codes.Internal, "Internal server error")
 	}
 
 	switch outcode {
@@ -219,8 +219,8 @@ func (ps *portfolioServer) DeleteProject(c context.Context, req *manager.DeleteR
 			Message: "Project deleted successfully",
 		}, nil
 	case 1:
-		return nil, status.Errorf(codes.NotFound, "project not found")
+		return nil, status.Errorf(codes.NotFound, "Project not found")
 	default:
-		return nil, status.Errorf(codes.Internal, "internal server error")
+		return nil, status.Errorf(codes.Internal, "Internal server error")
 	}
 }

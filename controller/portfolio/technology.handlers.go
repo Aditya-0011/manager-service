@@ -35,10 +35,10 @@ func (ps *portfolioServer) GetTechnologies(c context.Context, req *manager.Simpl
 
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return nil, status.Errorf(codes.NotFound, "technologies not found")
+			return nil, status.Errorf(codes.NotFound, "Technologies not found")
 		}
 		slog.Error("error querying database", "userId", req.GetUserId(), "error", err)
-		return nil, status.Errorf(codes.Internal, "internal server error")
+		return nil, status.Errorf(codes.Internal, "Internal server error")
 	}
 	defer rows.Close()
 
@@ -57,7 +57,7 @@ func (ps *portfolioServer) GetTechnologies(c context.Context, req *manager.Simpl
 		err := rows.Scan(&id, &name, &imageUrl, &fallbackImageUrl, &category, &updatedAt)
 		if err != nil {
 			slog.Error("error scanning rows", "userId", req.GetUserId(), "error", err)
-			return nil, status.Errorf(codes.Internal, "internal server error")
+			return nil, status.Errorf(codes.Internal, "Internal server error")
 		}
 
 		resTechnologies = append(resTechnologies, &manager.Technology{
@@ -72,11 +72,11 @@ func (ps *portfolioServer) GetTechnologies(c context.Context, req *manager.Simpl
 
 	if err := rows.Err(); err != nil {
 		slog.Error("error iterating rows", "userId", req.GetUserId(), "error", err)
-		return nil, status.Errorf(codes.Internal, "internal server error")
+		return nil, status.Errorf(codes.Internal, "Internal server error")
 	}
 
 	if len(resTechnologies) == 0 {
-		return nil, status.Errorf(codes.NotFound, "technologies not found")
+		return nil, status.Errorf(codes.NotFound, "Technologies not found")
 	}
 
 	return &manager.GetTechnologiesResponse{
@@ -111,7 +111,7 @@ func (ps *portfolioServer) CreateTechnology(c context.Context, req *manager.Tech
 	err := ps.postgres.Pool.QueryRow(ctx, query, queryParams).Scan(&outcode)
 	if err != nil {
 		slog.Error("error querying database", "userId", req.GetUserId(), "error", err)
-		return nil, status.Errorf(codes.Internal, "internal server error")
+		return nil, status.Errorf(codes.Internal, "Internal server error")
 	}
 
 	switch outcode {
@@ -120,7 +120,7 @@ func (ps *portfolioServer) CreateTechnology(c context.Context, req *manager.Tech
 			Message: "Technology created successfully",
 		}, nil
 	default:
-		return nil, status.Errorf(codes.Internal, "internal server error")
+		return nil, status.Errorf(codes.Internal, "Internal server error")
 	}
 }
 
@@ -151,7 +151,7 @@ func (ps *portfolioServer) UpdateTechnology(c context.Context, req *manager.Tech
 	err := ps.postgres.Pool.QueryRow(ctx, query, queryParams).Scan(&outcode)
 	if err != nil {
 		slog.Error("error querying database", "technologyId", req.GetId(), "userId", req.GetUserId(), "error", err)
-		return nil, status.Errorf(codes.Internal, "internal server error")
+		return nil, status.Errorf(codes.Internal, "Internal server error")
 	}
 
 	switch outcode {
@@ -160,9 +160,9 @@ func (ps *portfolioServer) UpdateTechnology(c context.Context, req *manager.Tech
 			Message: "Technology updated successfully",
 		}, nil
 	case 1:
-		return nil, status.Errorf(codes.NotFound, "technology not found")
+		return nil, status.Errorf(codes.NotFound, "Technology not found")
 	default:
-		return nil, status.Errorf(codes.Internal, "internal server error")
+		return nil, status.Errorf(codes.Internal, "Internal server error")
 	}
 }
 
@@ -182,7 +182,7 @@ func (ps *portfolioServer) DeleteTechnology(c context.Context, req *manager.Dele
 	err := ps.postgres.Pool.QueryRow(ctx, query, queryParams).Scan(&outcode)
 	if err != nil {
 		slog.Error("error querying database", "technologyId", req.GetId(), "userId", req.GetUserId(), "error", err)
-		return nil, status.Errorf(codes.Internal, "internal server error")
+		return nil, status.Errorf(codes.Internal, "Internal server error")
 	}
 
 	switch outcode {
@@ -191,8 +191,8 @@ func (ps *portfolioServer) DeleteTechnology(c context.Context, req *manager.Dele
 			Message: "Technology deleted successfully",
 		}, nil
 	case 1:
-		return nil, status.Errorf(codes.NotFound, "technology not found")
+		return nil, status.Errorf(codes.NotFound, "Technology not found")
 	default:
-		return nil, status.Errorf(codes.Internal, "internal server error")
+		return nil, status.Errorf(codes.Internal, "Internal server error")
 	}
 }
