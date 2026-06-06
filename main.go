@@ -49,7 +49,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	s := grpc.NewServer(grpc.UnaryInterceptor(middlewares.ValidationInterceptor(validator)))
+	s := grpc.NewServer(
+		grpc.UnaryInterceptor(middlewares.ValidationInterceptor(validator)),
+		grpc.MaxConcurrentStreams(1000),
+	)
 
 	controller.Setup(s, database)
 
