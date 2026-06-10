@@ -6,7 +6,7 @@ import (
 	"manager/utils"
 	"time"
 
-	manager "github.com/Aditya-0011/common/contracts/go/manager"
+	"github.com/Aditya-0011/common/contracts/go/manager"
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

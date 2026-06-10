@@ -5,7 +5,7 @@ import (
 	"manager/controller/user"
 	"manager/db"
 
-	manager "github.com/Aditya-0011/common/contracts/go/manager"
+	"github.com/Aditya-0011/common/contracts/go/manager"
 	"google.golang.org/grpc"
 )
 

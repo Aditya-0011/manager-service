@@ -3,7 +3,7 @@ package portfolio
 import (
 	"manager/db"
 
-	manager "github.com/Aditya-0011/common/contracts/go/manager"
+	"github.com/Aditya-0011/common/contracts/go/manager"
 )
 
 type (
