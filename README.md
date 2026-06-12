@@ -1,6 +1,6 @@
 # Portfolio Manager Service
 
-A high-performance gRPC backend for portfolio and content management, written in Go.
+A highly relational, strictly-typed Headless CMS built to manage the developer's personal portfolio.
 
 [![Go Version](https://img.shields.io/badge/Go->=1.25.3-00add8?style=flat-square&logo=go)](https://golang.org/)
 [![gRPC](https://img.shields.io/badge/gRPC-API-244c5a?style=flat-square&logo=grpc)](https://grpc.io/)
@@ -8,7 +8,7 @@ A high-performance gRPC backend for portfolio and content management, written in
 
 ## Overview
 
-The Manager Service operates as a core component within the infrastructure microservices ecosystem. It handles data persistence and business logic across domains like user management, portfolio tracking, experiences, technologies, and messages. It relies on strict protocol buffer definitions shared via a common contracts repository, ensuring type-safe and validated communication across services.
+The Manager Service operates as the core Headless Portfolio CMS. This service is designed to model and manage user professional entities: user profiles (about sections, cover images), work experiences (companies and nested positions), showcase projects, technologies, and incoming contact messages. It orchestrates complex timeline histories and relational tagging purely through locked-down PostgreSQL stored procedures.
 
 ## Architecture & Tech Stack
 
@@ -37,21 +37,21 @@ The Manager Service operates as a core component within the infrastructure micro
 - 🛡️ **Automated Validation**: Real-time payload validation via a gRPC unary interceptor. Invalid requests are rejected before they hit business logic.
 - 🗄️ **Robust Data Storage**: Uses PostgreSQL for reliable data persistence. Raw SQL statements are maintained in the `sql/` directory for optimized query execution.
 - 🚦 **Graceful Shutdown**: Handles OS signals to safely drain active connections and close database pools.
-- 📝 **Structured Logging**: Built-in JSON structured logging using Go's standard `log/slog`.
 
 ## API Summary
 
-The service implements a multi-domain gRPC interface focused on content management:
-- **User Management**: Updating profile metadata, about descriptions, and avatar links.
+The service implements a multi-domain gRPC interface tailored exclusively for resume and portfolio management:
+- **User Profile**: Endpoints for updating the user's main about description and avatar links.
+- **Experiences**: Orchestrating complex timeline histories, including companies and deeply nested positions.
 - **Projects**: Managing showcase projects, linked repositories, and featured status flags.
-- **Experiences**: Orchestrating complex timeline histories, including deeply nested positions and roles.
-- **Technologies**: Mapping a taxonomy of tech-stack skills to specific projects and experiences.
+- **Technologies**: Mapping a taxonomy of tech-stack skills dynamically to projects and experiences.
+- **Messages**: Storing and retrieving contact form submissions sent from the public website.
 
 ## Database Architecture
 
-- **Dedicated Schema**: Operates under the `portfolio` schema, managing entities like `user`, `project`, `experience`, `position`, and `technology`.
+- **Dedicated Schema**: Operates under the `portfolio` schema, managing entities like `user`, `project`, `experience`, `position`, `message`, and `technology`.
 - **Restricted Access**: Connects using the `manager_service` database role, which does **not** have direct `INSERT`, `UPDATE`, or `DELETE` permissions on tables.
-- **Stored Procedures**: All complex writes are handled safely via strictly defined database functions (e.g., `portfolio.edit_experience`).
+- **Stored Procedures**: All complex writes, cascading deletions, and relational upserts (e.g., updating an experience timeline and linking project positions) are handled safely via strictly defined database functions (e.g., `portfolio.edit_experience`).
 
 ## Getting Started
 
