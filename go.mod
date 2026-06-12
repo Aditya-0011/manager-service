@@ -4,7 +4,7 @@ go 1.25.3
 
 require (
 	buf.build/go/protovalidate v1.2.0
-	github.com/Aditya-0011/common/contracts/go v0.0.0-20260603191515-bab1095c92ea
+	github.com/Aditya-0011/common/contracts/go v0.0.0-20260610194507-22d4a328a1bf
 	github.com/jackc/pgx/v5 v5.9.2
 	google.golang.org/grpc v1.81.0
 	google.golang.org/protobuf v1.36.11
