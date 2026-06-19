@@ -45,7 +45,7 @@ func (us *userServer) GetUserDetails(c context.Context, req *manager.SimpleReque
 	err := us.postgres.Pool.QueryRow(ctx, query, req.GetUserId()).Scan(&about, &coverImage, &updatedAt)
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return nil, faults.ErrUserNotFound
+			return &manager.GetUserDetailsResponse{}, nil
 		}
 		slog.LogAttrs(ctx, slog.LevelError, "error querying database",
 			slog.Int64("userId", int64(req.GetUserId())),

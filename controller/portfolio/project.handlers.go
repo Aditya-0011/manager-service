@@ -99,10 +99,6 @@ func (ps *portfolioServer) GetProjects(c context.Context, req *manager.SimpleReq
 		return nil, faults.ErrInternal
 	}
 
-	if len(resProjects) == 0 {
-		return nil, faults.ErrProjectsNotFound
-	}
-
 	return &manager.GetProjectsResponse{
 		Projects: resProjects,
 	}, nil

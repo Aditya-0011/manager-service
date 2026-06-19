@@ -59,10 +59,6 @@ func (ps *portfolioServer) GetMessages(c context.Context, req *manager.SimpleReq
 		return nil, faults.ErrInternal
 	}
 
-	if len(resMessages) == 0 {
-		return nil, faults.ErrMessagesNotFound
-	}
-
 	return &manager.GetMessagesResponse{
 		Messages: resMessages,
 	}, nil

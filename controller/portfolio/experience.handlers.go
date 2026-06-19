@@ -145,10 +145,6 @@ func (ps *portfolioServer) GetExperiences(c context.Context, req *manager.Simple
 		return nil, faults.ErrInternal
 	}
 
-	if len(resExperiences) == 0 {
-		return nil, faults.ErrExperiencesNotFound
-	}
-
 	return &manager.GetExperiencesResponse{
 		Experiences: resExperiences,
 	}, nil

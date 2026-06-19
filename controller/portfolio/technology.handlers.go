@@ -75,10 +75,6 @@ func (ps *portfolioServer) GetTechnologies(c context.Context, req *manager.Simpl
 		return nil, faults.ErrInternal
 	}
 
-	if len(resTechnologies) == 0 {
-		return nil, faults.ErrTechnologiesNotFound
-	}
-
 	return &manager.GetTechnologiesResponse{
 		Technologies: resTechnologies,
 	}, nil
