@@ -3,35 +3,29 @@ package portfolio
 import (
 	"context"
 	"log/slog"
-	"manager/utils"
+	"manager/internal/faults"
+	"manager/internal/timeout"
 
 	"github.com/Aditya-0011/common/contracts/go/manager"
-	"github.com/jackc/pgx/v5"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 func (ps *portfolioServer) GetMessages(c context.Context, req *manager.SimpleRequest) (*manager.GetMessagesResponse, error) {
-	ctx, cancel := context.WithTimeout(c, utils.TimeoutDuration)
+	ctx, cancel := timeout.WithDeadline(c, timeout.Duration)
 	defer cancel()
 
-	query := `select id, name, email, messages from portfolio.message where userId = @userId`
+	query := `select id, name, email, messages from portfolio.message where userId = $1`
 
-	queryParams := pgx.NamedArgs{
-		"userId": req.GetUserId(),
-	}
-
-	rows, err := ps.postgres.Pool.Query(ctx, query, queryParams)
+	rows, err := ps.postgres.Pool.Query(ctx, query, req.GetUserId())
 	if err != nil {
-		if err == pgx.ErrNoRows {
-			return nil, status.Errorf(codes.NotFound, "Messages not found")
-		}
-		slog.Error("error querying database", "userId", req.GetUserId(), "error", err)
-		return nil, status.Errorf(codes.Internal, "Internal server error")
+		slog.LogAttrs(ctx, slog.LevelError, "error querying database",
+			slog.Int64("userId", int64(req.GetUserId())),
+			slog.String("error", err.Error()),
+		)
+		return nil, faults.ErrInternal
 	}
 	defer rows.Close()
 
-	var resMessages []*manager.Message
+	resMessages := make([]*manager.Message, 0, 16)
 
 	for rows.Next() {
 		var (
@@ -42,8 +36,11 @@ func (ps *portfolioServer) GetMessages(c context.Context, req *manager.SimpleReq
 		)
 		err := rows.Scan(&id, &name, &email, &messages)
 		if err != nil {
-			slog.Error("error scanning rows", "userId", req.GetUserId(), "error", err)
-			return nil, status.Errorf(codes.Internal, "Internal server error")
+			slog.LogAttrs(ctx, slog.LevelError, "error scanning rows",
+				slog.Int64("userId", int64(req.GetUserId())),
+				slog.String("error", err.Error()),
+			)
+			return nil, faults.ErrInternal
 		}
 
 		resMessages = append(resMessages, &manager.Message{
@@ -55,12 +52,15 @@ func (ps *portfolioServer) GetMessages(c context.Context, req *manager.SimpleReq
 	}
 
 	if err := rows.Err(); err != nil {
-		slog.Error("error iterating rows", "userId", req.GetUserId(), "error", err)
-		return nil, status.Errorf(codes.Internal, "Internal server error")
+		slog.LogAttrs(ctx, slog.LevelError, "error iterating rows",
+			slog.Int64("userId", int64(req.GetUserId())),
+			slog.String("error", err.Error()),
+		)
+		return nil, faults.ErrInternal
 	}
 
 	if len(resMessages) == 0 {
-		return nil, status.Errorf(codes.NotFound, "Messages not found")
+		return nil, faults.ErrMessagesNotFound
 	}
 
 	return &manager.GetMessagesResponse{
@@ -69,24 +69,20 @@ func (ps *portfolioServer) GetMessages(c context.Context, req *manager.SimpleReq
 }
 
 func (ps *portfolioServer) AddMessage(c context.Context, req *manager.AddMessageRequest) (*manager.SimpleResponse, error) {
-	ctx, cancel := context.WithTimeout(c, utils.TimeoutDuration)
+	ctx, cancel := timeout.WithDeadline(c, timeout.Duration)
 	defer cancel()
 
-	query := `select outcode from portfolio.add_message(@userId, @name, @email, @message)`
+	query := `select outcode from portfolio.add_message($1, $2, $3, $4)`
 
-	queryParams := pgx.NamedArgs{
-		"userId":  req.GetUserId(),
-		"name":    req.GetName(),
-		"email":   req.GetEmail(),
-		"message": req.GetMessage(),
-	}
+	var outcode int16
 
-	var outcode int8
-
-	err := ps.postgres.Pool.QueryRow(ctx, query, queryParams).Scan(&outcode)
+	err := ps.postgres.Pool.QueryRow(ctx, query, req.GetUserId(), req.GetName(), req.GetEmail(), req.GetMessage()).Scan(&outcode)
 	if err != nil {
-		slog.Error("error querying database", "userId", req.GetUserId(), "error", err)
-		return nil, status.Errorf(codes.Internal, "Internal server error")
+		slog.LogAttrs(ctx, slog.LevelError, "error querying database",
+			slog.Int64("userId", int64(req.GetUserId())),
+			slog.String("error", err.Error()),
+		)
+		return nil, faults.ErrInternalCreate
 	}
 
 	switch outcode {
@@ -95,29 +91,28 @@ func (ps *portfolioServer) AddMessage(c context.Context, req *manager.AddMessage
 			Message: "Message added successfully",
 		}, nil
 	case 0:
-		return nil, status.Errorf(codes.Aborted, "You have reached the limit of messages")
+		return nil, faults.ErrMessageLimit
 	default:
-		return nil, status.Errorf(codes.Internal, "Internal server error")
+		return nil, faults.ErrInternalCreate
 	}
 
 }
 
 func (ps *portfolioServer) DeleteMessage(c context.Context, req *manager.DeleteMessageRequest) (*manager.SimpleResponse, error) {
-	ctx, cancel := context.WithTimeout(c, utils.TimeoutDuration)
+	ctx, cancel := timeout.WithDeadline(c, timeout.Duration)
 	defer cancel()
 
-	query := `select outcode from portfolio.delete_messages(@id, @userId)`
+	query := `select outcode from portfolio.delete_messages($1, $2)`
 
-	queryParams := pgx.NamedArgs{
-		"id":     req.GetId(),
-		"userId": req.GetUserId(),
-	}
-
-	var outcode int8
-	err := ps.postgres.Pool.QueryRow(ctx, query, queryParams).Scan(&outcode)
+	var outcode int16
+	err := ps.postgres.Pool.QueryRow(ctx, query, req.GetId(), req.GetUserId()).Scan(&outcode)
 	if err != nil {
-		slog.Error("error querying database", "messageId", req.GetId(), "userId", req.GetUserId(), "error", err)
-		return nil, status.Errorf(codes.Internal, "Internal server error")
+		slog.LogAttrs(ctx, slog.LevelError, "error querying database",
+			slog.String("messageId", req.GetId()),
+			slog.Int64("userId", int64(req.GetUserId())),
+			slog.String("error", err.Error()),
+		)
+		return nil, faults.ErrInternalDelete
 	}
 
 	switch outcode {
@@ -126,8 +121,8 @@ func (ps *portfolioServer) DeleteMessage(c context.Context, req *manager.DeleteM
 			Message: "Message deleted successfully",
 		}, nil
 	case 1:
-		return nil, status.Errorf(codes.NotFound, "Message not found")
+		return nil, faults.ErrMessageNotFound
 	default:
-		return nil, status.Errorf(codes.Internal, "Internal server error")
+		return nil, faults.ErrInternalDelete
 	}
 }

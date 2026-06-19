@@ -4,19 +4,21 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"manager/lib"
-	"manager/utils"
+	"manager/internal/faults"
+	"manager/internal/model"
+	"manager/internal/timeout"
+	"slices"
 	"time"
 
 	"github.com/Aditya-0011/common/contracts/go/manager"
-	"github.com/jackc/pgx/v5"
+	"github.com/bytedance/sonic"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func (ps *portfolioServer) GetExperiences(c context.Context, req *manager.SimpleRequest) (*manager.GetExperiencesResponse, error) {
-	ctx, cancel := context.WithTimeout(c, utils.TimeoutDuration)
+	ctx, cancel := timeout.WithDeadline(c, timeout.Duration)
 	defer cancel()
 
 	query := `
@@ -60,42 +62,55 @@ func (ps *portfolioServer) GetExperiences(c context.Context, req *manager.Simple
 			where pos.experienceId = e.id
 		), '[]'::jsonb) as positions
 	from portfolio.experience e
-	where e.userId = @userId
+	where e.userId = $1
 	order by e.start desc
 	`
 
-	queryParams := pgx.NamedArgs{
-		"userId": req.GetUserId(),
-	}
-
-	rows, err := ps.postgres.Pool.Query(ctx, query, queryParams)
+	rows, err := ps.postgres.Pool.Query(ctx, query, req.GetUserId())
 	if err != nil {
-		if err == pgx.ErrNoRows {
-			return nil, status.Errorf(codes.NotFound, "experiences not found")
-		}
-		slog.Error("error querying database", "userId", req.GetUserId(), "error", err)
-		return nil, status.Errorf(codes.Internal, "internal server error")
+		slog.LogAttrs(ctx, slog.LevelError, "error querying database",
+			slog.Int64("userId", int64(req.GetUserId())),
+			slog.String("error", err.Error()),
+		)
+		return nil, faults.ErrInternal
 	}
 	defer rows.Close()
 
-	var resExperiences []*manager.Experience
+	resExperiences := make([]*manager.Experience, 0, 16)
 
 	for rows.Next() {
 		var (
-			id           int32
-			company      string
-			start        string
-			end          *string
-			tenure       *string
-			updatedAt    time.Time
-			technologies []*manager.TechnologySummary
-			positions    []*manager.Position
+			id        int32
+			company   string
+			start     string
+			end       *string
+			tenure    *string
+			updatedAt time.Time
+			techBytes []byte
+			posBytes  []byte
 		)
 
-		err := rows.Scan(&id, &company, &start, &end, &tenure, &updatedAt, &technologies, &positions)
+		err := rows.Scan(&id, &company, &start, &end, &tenure, &updatedAt, &techBytes, &posBytes)
 		if err != nil {
-			slog.Error("error scanning rows", "userId", req.GetUserId(), "error", err)
-			return nil, status.Errorf(codes.Internal, "internal server error")
+			slog.LogAttrs(ctx, slog.LevelError, "error scanning rows",
+				slog.Int64("userId", int64(req.GetUserId())),
+				slog.String("error", err.Error()),
+			)
+			return nil, faults.ErrInternal
+		}
+
+		var technologies []*manager.TechnologySummary
+		if len(techBytes) > 0 {
+			if err := sonic.Unmarshal(techBytes, &technologies); err != nil {
+				slog.LogAttrs(ctx, slog.LevelError, "error unmarshaling technologies", slog.String("error", err.Error()))
+			}
+		}
+
+		var positions []*manager.Position
+		if len(posBytes) > 0 {
+			if err := sonic.Unmarshal(posBytes, &positions); err != nil {
+				slog.LogAttrs(ctx, slog.LevelError, "error unmarshaling positions", slog.String("error", err.Error()))
+			}
 		}
 
 		resEnd := ""
@@ -123,12 +138,15 @@ func (ps *portfolioServer) GetExperiences(c context.Context, req *manager.Simple
 	}
 
 	if err := rows.Err(); err != nil {
-		slog.Error("error iterating rows", "userId", req.GetUserId(), "error", err)
-		return nil, status.Errorf(codes.Internal, "internal server error")
+		slog.LogAttrs(ctx, slog.LevelError, "error iterating rows",
+			slog.Int64("userId", int64(req.GetUserId())),
+			slog.String("error", err.Error()),
+		)
+		return nil, faults.ErrInternal
 	}
 
 	if len(resExperiences) == 0 {
-		return nil, status.Errorf(codes.NotFound, "experiences not found")
+		return nil, faults.ErrExperiencesNotFound
 	}
 
 	return &manager.GetExperiencesResponse{
@@ -137,25 +155,19 @@ func (ps *portfolioServer) GetExperiences(c context.Context, req *manager.Simple
 }
 
 func (ps *portfolioServer) CreateExperience(c context.Context, req *manager.ExperienceCreateRequest) (*manager.SimpleResponse, error) {
-	ctx, cancel := context.WithTimeout(c, utils.TimeoutDuration)
+	ctx, cancel := timeout.WithDeadline(c, timeout.Duration)
 	defer cancel()
 
-	query := `select outcode from portfolio.edit_experience(
-				@id, 
-				@userId, 
-				@company, 
-				@positions, 
-				@technologies
-			  )`
+	query := `select outcode from portfolio.edit_experience($1, $2, $3, $4, $5)`
 	for i, p := range req.GetPositions() {
 		if err := validatePosition(p.GetStart(), p.End, i); err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "%s", err.Error())
+			return nil, status.Error(codes.InvalidArgument, err.Error())
 		}
 	}
 
-	dbPositions := make([]lib.PositionCreate, len(req.GetPositions()))
+	dbPositions := make([]model.PositionCreate, len(req.GetPositions()))
 	for i, p := range req.GetPositions() {
-		dbPositions[i] = lib.PositionCreate{
+		dbPositions[i] = model.PositionCreate{
 			Id:       -1,
 			Role:     p.GetRole(),
 			Start:    p.GetStart(),
@@ -165,20 +177,21 @@ func (ps *portfolioServer) CreateExperience(c context.Context, req *manager.Expe
 		}
 	}
 
-	queryParams := pgx.NamedArgs{
-		"id":           -1,
-		"userId":       req.GetUserId(),
-		"company":      req.GetCompany(),
-		"positions":    dbPositions,
-		"technologies": req.GetTechnologies(),
-	}
+	var outcode int16
 
-	var outcode int8
-
-	err := ps.postgres.Pool.QueryRow(ctx, query, queryParams).Scan(&outcode)
+	err := ps.postgres.Pool.QueryRow(ctx, query,
+		-1,
+		req.GetUserId(),
+		req.GetCompany(),
+		dbPositions,
+		req.GetTechnologies(),
+	).Scan(&outcode)
 	if err != nil {
-		slog.Error("error querying database", "userId", req.GetUserId(), "error", err)
-		return nil, status.Errorf(codes.Internal, "internal server error")
+		slog.LogAttrs(ctx, slog.LevelError, "error querying database",
+			slog.Int64("userId", int64(req.GetUserId())),
+			slog.String("error", err.Error()),
+		)
+		return nil, faults.ErrInternalCreate
 	}
 
 	switch outcode {
@@ -187,28 +200,22 @@ func (ps *portfolioServer) CreateExperience(c context.Context, req *manager.Expe
 			Message: "Experience created successfully",
 		}, nil
 	default:
-		return nil, status.Errorf(codes.Internal, "internal server error")
+		return nil, faults.ErrInternalCreate
 	}
 }
 
 func (ps *portfolioServer) UpdateExperience(c context.Context, req *manager.ExperienceUpdateRequest) (*manager.SimpleResponse, error) {
-	ctx, cancel := context.WithTimeout(c, utils.TimeoutDuration)
+	ctx, cancel := timeout.WithDeadline(c, timeout.Duration)
 	defer cancel()
 
-	query := `select outcode from portfolio.edit_experience(
-				@id, 
-				@userId, 
-				@company, 
-				@positions, 
-				@technologies
-			  )`
+	query := `select outcode from portfolio.edit_experience($1, $2, $3, $4, $5)`
 	for i, p := range req.GetPositions() {
 		if err := validatePosition(p.GetStart(), p.End, i); err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "%s", err.Error())
+			return nil, status.Error(codes.InvalidArgument, err.Error())
 		}
 	}
 
-	dbPositions := make([]lib.PositionCreate, len(req.GetPositions()))
+	dbPositions := make([]model.PositionCreate, len(req.GetPositions()))
 	for i, p := range req.GetPositions() {
 
 		id := p.GetId()
@@ -216,7 +223,7 @@ func (ps *portfolioServer) UpdateExperience(c context.Context, req *manager.Expe
 			id = -1
 		}
 
-		dbPositions[i] = lib.PositionCreate{
+		dbPositions[i] = model.PositionCreate{
 			Id:       id,
 			Role:     p.GetRole(),
 			Start:    p.GetStart(),
@@ -226,20 +233,22 @@ func (ps *portfolioServer) UpdateExperience(c context.Context, req *manager.Expe
 		}
 	}
 
-	queryParams := pgx.NamedArgs{
-		"id":           req.GetId(),
-		"userId":       req.GetUserId(),
-		"company":      req.GetCompany(),
-		"positions":    dbPositions,
-		"technologies": req.GetTechnologies(),
-	}
+	var outcode int16
 
-	var outcode int8
-
-	err := ps.postgres.Pool.QueryRow(ctx, query, queryParams).Scan(&outcode)
+	err := ps.postgres.Pool.QueryRow(ctx, query,
+		req.GetId(),
+		req.GetUserId(),
+		req.GetCompany(),
+		dbPositions,
+		req.GetTechnologies(),
+	).Scan(&outcode)
 	if err != nil {
-		slog.Error("error querying database", "experienceId", req.GetId(), "userId", req.GetUserId(), "error", err)
-		return nil, status.Errorf(codes.Internal, "internal server error")
+		slog.LogAttrs(ctx, slog.LevelError, "error querying database",
+			slog.Int64("experienceId", int64(req.GetId())),
+			slog.Int64("userId", int64(req.GetUserId())),
+			slog.String("error", err.Error()),
+		)
+		return nil, faults.ErrInternalUpdate
 	}
 
 	switch outcode {
@@ -248,29 +257,28 @@ func (ps *portfolioServer) UpdateExperience(c context.Context, req *manager.Expe
 			Message: "Experience updated successfully",
 		}, nil
 	case 1:
-		return nil, status.Errorf(codes.NotFound, "experience not found")
+		return nil, faults.ErrExperienceNotFound
 	default:
-		return nil, status.Errorf(codes.Internal, "internal server error")
+		return nil, faults.ErrInternalUpdate
 	}
 }
 
 func (ps *portfolioServer) DeleteExperience(c context.Context, req *manager.DeleteRequest) (*manager.SimpleResponse, error) {
-	ctx, cancel := context.WithTimeout(c, utils.TimeoutDuration)
+	ctx, cancel := timeout.WithDeadline(c, timeout.Duration)
 	defer cancel()
 
-	query := `select outcode from portfolio.delete_experience(@id, @userId)`
+	query := `select outcode from portfolio.delete_experience($1, $2)`
 
-	queryParams := pgx.NamedArgs{
-		"id":     req.GetId(),
-		"userId": req.GetUserId(),
-	}
+	var outcode int16
 
-	var outcode int8
-
-	err := ps.postgres.Pool.QueryRow(ctx, query, queryParams).Scan(&outcode)
+	err := ps.postgres.Pool.QueryRow(ctx, query, req.GetId(), req.GetUserId()).Scan(&outcode)
 	if err != nil {
-		slog.Error("error querying database", "experienceId", req.GetId(), "userId", req.GetUserId(), "error", err)
-		return nil, status.Errorf(codes.Internal, "internal server error")
+		slog.LogAttrs(ctx, slog.LevelError, "error querying database",
+			slog.Int64("experienceId", int64(req.GetId())),
+			slog.Int64("userId", int64(req.GetUserId())),
+			slog.String("error", err.Error()),
+		)
+		return nil, faults.ErrInternalDelete
 	}
 
 	switch outcode {
@@ -279,14 +287,21 @@ func (ps *portfolioServer) DeleteExperience(c context.Context, req *manager.Dele
 			Message: "Experience deleted successfully",
 		}, nil
 	case 1:
-		return nil, status.Errorf(codes.NotFound, "experience not found")
+		return nil, faults.ErrExperienceNotFound
 	default:
-		return nil, status.Errorf(codes.Internal, "internal server error")
+		return nil, faults.ErrInternalDelete
 	}
 }
 
 func calculateTotalTenure(positions []*manager.Position) string {
-	uniqueMonths := make(map[string]bool)
+	if len(positions) == 0 {
+		return ""
+	}
+
+	now := time.Now()
+
+	type interval struct{ start, end time.Time }
+	intervals := make([]interval, 0, len(positions))
 
 	for _, pos := range positions {
 		var start, end time.Time
@@ -298,7 +313,7 @@ func calculateTotalTenure(positions []*manager.Position) string {
 		}
 
 		if pos.End == "" || pos.End == "Present" {
-			end = time.Now()
+			end = now
 		} else if len(pos.End) == 7 {
 			end, _ = time.Parse("2006-01", pos.End)
 		} else {
@@ -308,41 +323,54 @@ func calculateTotalTenure(positions []*manager.Position) string {
 		if start.IsZero() || end.IsZero() {
 			continue
 		}
-
-		if end.After(time.Now()) {
-			end = time.Now()
+		if end.After(now) {
+			end = now
 		}
-
-		curr := start
-		for !curr.After(end) {
-			uniqueMonths[curr.Format("2006-01")] = true
-			curr = curr.AddDate(0, 1, 0)
-		}
+		start = time.Date(start.Year(), start.Month(), 1, 0, 0, 0, 0, time.UTC)
+		end = time.Date(end.Year(), end.Month(), 1, 0, 0, 0, 0, time.UTC)
+		intervals = append(intervals, interval{start, end})
 	}
 
-	totalMonths := len(uniqueMonths)
-	if totalMonths == 0 {
+	if len(intervals) == 0 {
 		return ""
 	}
 
-	yrs := totalMonths / 12
-	mos := totalMonths % 12
+	slices.SortFunc(intervals, func(a, b interval) int {
+		return a.start.Compare(b.start)
+	})
 
-	tenure := ""
-	if yrs > 0 {
-		if mos > 0 {
-			tenure = fmt.Sprintf("%d yr %d mos", yrs, mos)
+	merged := intervals[:1]
+	for _, iv := range intervals[1:] {
+		last := &merged[len(merged)-1]
+
+		if !iv.start.After(last.end.AddDate(0, 1, 0)) {
+			if iv.end.After(last.end) {
+				last.end = iv.end
+			}
 		} else {
-			tenure = fmt.Sprintf("%d yr", yrs)
-		}
-	} else {
-		if totalMonths == 1 {
-			tenure = "1 month"
-		} else {
-			tenure = fmt.Sprintf("%d mos", totalMonths)
+			merged = append(merged, iv)
 		}
 	}
-	return tenure
+
+	totalMonths := 0
+	for _, iv := range merged {
+		months := (iv.end.Year()-iv.start.Year())*12 + int(iv.end.Month()-iv.start.Month()) + 1
+		totalMonths += months
+	}
+
+	if totalMonths <= 0 {
+		return ""
+	}
+
+	years := totalMonths / 12
+	months := totalMonths % 12
+
+	if years > 0 && months > 0 {
+		return fmt.Sprintf("%d yrs %d mos", years, months)
+	} else if years > 0 {
+		return fmt.Sprintf("%d yrs", years)
+	}
+	return fmt.Sprintf("%d mos", months)
 }
 
 func validatePosition(startStr string, endStr *string, index int) error {

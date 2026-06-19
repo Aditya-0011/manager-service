@@ -1,4 +1,4 @@
-package lib
+package model
 
 type PositionCreate struct {
 	Id       int32   `db:"id" json:"id"`

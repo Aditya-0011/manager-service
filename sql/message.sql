@@ -46,7 +46,9 @@ begin
         outcode := -1;
     end if;
 exception 
-    when others then outcode := 2;
+    when others then 
+        raise warning 'DB Error: %', sqlerrm;
+        outcode := 2;
 end;
 $$ language plpgsql security definer;
 
@@ -57,14 +59,16 @@ create or replace function portfolio.delete_messages(
 )
 as $$
 begin
-    if exists (select 1 from portfolio.message where id = p_id and userId = p_userId for update) then
-        delete from portfolio.message where id = p_id and userId = p_userId;
+    delete from portfolio.message where id = p_id and userId = p_userId;
+    if found then
         outcode := -1;
     else
         outcode := 1;
     end if;
 exception 
-    when others then outcode := 2;
+    when others then 
+        raise warning 'DB Error: %', sqlerrm;
+        outcode := 2;
 end;
 $$ language plpgsql security definer;
 

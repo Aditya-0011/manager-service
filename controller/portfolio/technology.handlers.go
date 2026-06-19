@@ -3,18 +3,16 @@ package portfolio
 import (
 	"context"
 	"log/slog"
-	"manager/utils"
+	"manager/internal/faults"
+	"manager/internal/timeout"
 	"time"
 
 	"github.com/Aditya-0011/common/contracts/go/manager"
-	"github.com/jackc/pgx/v5"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func (ps *portfolioServer) GetTechnologies(c context.Context, req *manager.SimpleRequest) (*manager.GetTechnologiesResponse, error) {
-	ctx, cancel := context.WithTimeout(c, utils.TimeoutDuration)
+	ctx, cancel := timeout.WithDeadline(c, timeout.Duration)
 	defer cancel()
 
 	query := `select 
@@ -25,24 +23,20 @@ func (ps *portfolioServer) GetTechnologies(c context.Context, req *manager.Simpl
 				category, 
 				updatedAt 
 			  from portfolio.technology 
-			  where userId = @userId`
+			  where userId = $1`
 
-	queryParams := pgx.NamedArgs{
-		"userId": req.GetUserId(),
-	}
-
-	rows, err := ps.postgres.Pool.Query(ctx, query, queryParams)
+	rows, err := ps.postgres.Pool.Query(ctx, query, req.GetUserId())
 
 	if err != nil {
-		if err == pgx.ErrNoRows {
-			return nil, status.Errorf(codes.NotFound, "Technologies not found")
-		}
-		slog.Error("error querying database", "userId", req.GetUserId(), "error", err)
-		return nil, status.Errorf(codes.Internal, "Internal server error")
+		slog.LogAttrs(ctx, slog.LevelError, "error querying database",
+			slog.Int64("userId", int64(req.GetUserId())),
+			slog.String("error", err.Error()),
+		)
+		return nil, faults.ErrInternal
 	}
 	defer rows.Close()
 
-	var resTechnologies []*manager.Technology
+	resTechnologies := make([]*manager.Technology, 0, 16)
 
 	for rows.Next() {
 		var (
@@ -56,8 +50,11 @@ func (ps *portfolioServer) GetTechnologies(c context.Context, req *manager.Simpl
 
 		err := rows.Scan(&id, &name, &imageUrl, &fallbackImageUrl, &category, &updatedAt)
 		if err != nil {
-			slog.Error("error scanning rows", "userId", req.GetUserId(), "error", err)
-			return nil, status.Errorf(codes.Internal, "Internal server error")
+			slog.LogAttrs(ctx, slog.LevelError, "error scanning rows",
+				slog.Int64("userId", int64(req.GetUserId())),
+				slog.String("error", err.Error()),
+			)
+			return nil, faults.ErrInternal
 		}
 
 		resTechnologies = append(resTechnologies, &manager.Technology{
@@ -71,12 +68,15 @@ func (ps *portfolioServer) GetTechnologies(c context.Context, req *manager.Simpl
 	}
 
 	if err := rows.Err(); err != nil {
-		slog.Error("error iterating rows", "userId", req.GetUserId(), "error", err)
-		return nil, status.Errorf(codes.Internal, "Internal server error")
+		slog.LogAttrs(ctx, slog.LevelError, "error iterating rows",
+			slog.Int64("userId", int64(req.GetUserId())),
+			slog.String("error", err.Error()),
+		)
+		return nil, faults.ErrInternal
 	}
 
 	if len(resTechnologies) == 0 {
-		return nil, status.Errorf(codes.NotFound, "Technologies not found")
+		return nil, faults.ErrTechnologiesNotFound
 	}
 
 	return &manager.GetTechnologiesResponse{
@@ -85,33 +85,27 @@ func (ps *portfolioServer) GetTechnologies(c context.Context, req *manager.Simpl
 }
 
 func (ps *portfolioServer) CreateTechnology(c context.Context, req *manager.TechnologyCreateRequest) (*manager.SimpleResponse, error) {
-	ctx, cancel := context.WithTimeout(c, utils.TimeoutDuration)
+	ctx, cancel := timeout.WithDeadline(c, timeout.Duration)
 	defer cancel()
 
-	query := `select outcode from portfolio.edit_technology(
-				@id, 
-				@userId, 
-				@name, 
-				@imageUrl, 
-				@fallbackImageUrl, 
-				@category
-			  )`
+	query := `select outcode from portfolio.edit_technology($1, $2, $3, $4, $5, $6)`
 
-	queryParams := pgx.NamedArgs{
-		"id":               -1,
-		"userId":           req.GetUserId(),
-		"name":             req.GetName(),
-		"imageUrl":         req.GetImageUrl(),
-		"fallbackImageUrl": req.GetFallbackImageUrl(),
-		"category":         req.GetCategory(),
-	}
+	var outcode int16
 
-	var outcode int8
-
-	err := ps.postgres.Pool.QueryRow(ctx, query, queryParams).Scan(&outcode)
+	err := ps.postgres.Pool.QueryRow(ctx, query,
+		-1,
+		req.GetUserId(),
+		req.GetName(),
+		req.GetImageUrl(),
+		req.GetFallbackImageUrl(),
+		req.GetCategory(),
+	).Scan(&outcode)
 	if err != nil {
-		slog.Error("error querying database", "userId", req.GetUserId(), "error", err)
-		return nil, status.Errorf(codes.Internal, "Internal server error")
+		slog.LogAttrs(ctx, slog.LevelError, "error querying database",
+			slog.Int64("userId", int64(req.GetUserId())),
+			slog.String("error", err.Error()),
+		)
+		return nil, faults.ErrInternalCreate
 	}
 
 	switch outcode {
@@ -120,38 +114,33 @@ func (ps *portfolioServer) CreateTechnology(c context.Context, req *manager.Tech
 			Message: "Technology created successfully",
 		}, nil
 	default:
-		return nil, status.Errorf(codes.Internal, "Internal server error")
+		return nil, faults.ErrInternalCreate
 	}
 }
 
 func (ps *portfolioServer) UpdateTechnology(c context.Context, req *manager.TechnologyUpdateRequest) (*manager.SimpleResponse, error) {
-	ctx, cancel := context.WithTimeout(c, utils.TimeoutDuration)
+	ctx, cancel := timeout.WithDeadline(c, timeout.Duration)
 	defer cancel()
 
-	query := `select outcode from portfolio.edit_technology(
-				@id, 
-				@userId, 
-				@name, 
-				@imageUrl, 
-				@fallbackImageUrl, 
-				@category
-			  )`
+	query := `select outcode from portfolio.edit_technology($1, $2, $3, $4, $5, $6)`
 
-	queryParams := pgx.NamedArgs{
-		"id":               req.GetId(),
-		"userId":           req.GetUserId(),
-		"name":             req.GetName(),
-		"imageUrl":         req.GetImageUrl(),
-		"fallbackImageUrl": req.GetFallbackImageUrl(),
-		"category":         req.GetCategory(),
-	}
+	var outcode int16
 
-	var outcode int8
-
-	err := ps.postgres.Pool.QueryRow(ctx, query, queryParams).Scan(&outcode)
+	err := ps.postgres.Pool.QueryRow(ctx, query,
+		req.GetId(),
+		req.GetUserId(),
+		req.GetName(),
+		req.GetImageUrl(),
+		req.GetFallbackImageUrl(),
+		req.GetCategory(),
+	).Scan(&outcode)
 	if err != nil {
-		slog.Error("error querying database", "technologyId", req.GetId(), "userId", req.GetUserId(), "error", err)
-		return nil, status.Errorf(codes.Internal, "Internal server error")
+		slog.LogAttrs(ctx, slog.LevelError, "error querying database",
+			slog.Int64("technologyId", int64(req.GetId())),
+			slog.Int64("userId", int64(req.GetUserId())),
+			slog.String("error", err.Error()),
+		)
+		return nil, faults.ErrInternalUpdate
 	}
 
 	switch outcode {
@@ -160,29 +149,28 @@ func (ps *portfolioServer) UpdateTechnology(c context.Context, req *manager.Tech
 			Message: "Technology updated successfully",
 		}, nil
 	case 1:
-		return nil, status.Errorf(codes.NotFound, "Technology not found")
+		return nil, faults.ErrTechnologyNotFound
 	default:
-		return nil, status.Errorf(codes.Internal, "Internal server error")
+		return nil, faults.ErrInternalUpdate
 	}
 }
 
 func (ps *portfolioServer) DeleteTechnology(c context.Context, req *manager.DeleteRequest) (*manager.SimpleResponse, error) {
-	ctx, cancel := context.WithTimeout(c, utils.TimeoutDuration)
+	ctx, cancel := timeout.WithDeadline(c, timeout.Duration)
 	defer cancel()
 
-	query := `select outcode from portfolio.delete_technology(@id, @userId)`
+	query := `select outcode from portfolio.delete_technology($1, $2)`
 
-	queryParams := pgx.NamedArgs{
-		"id":     req.GetId(),
-		"userId": req.GetUserId(),
-	}
+	var outcode int16
 
-	var outcode int8
-
-	err := ps.postgres.Pool.QueryRow(ctx, query, queryParams).Scan(&outcode)
+	err := ps.postgres.Pool.QueryRow(ctx, query, req.GetId(), req.GetUserId()).Scan(&outcode)
 	if err != nil {
-		slog.Error("error querying database", "technologyId", req.GetId(), "userId", req.GetUserId(), "error", err)
-		return nil, status.Errorf(codes.Internal, "Internal server error")
+		slog.LogAttrs(ctx, slog.LevelError, "error querying database",
+			slog.Int64("technologyId", int64(req.GetId())),
+			slog.Int64("userId", int64(req.GetUserId())),
+			slog.String("error", err.Error()),
+		)
+		return nil, faults.ErrInternalDelete
 	}
 
 	switch outcode {
@@ -191,8 +179,8 @@ func (ps *portfolioServer) DeleteTechnology(c context.Context, req *manager.Dele
 			Message: "Technology deleted successfully",
 		}, nil
 	case 1:
-		return nil, status.Errorf(codes.NotFound, "Technology not found")
+		return nil, faults.ErrTechnologyNotFound
 	default:
-		return nil, status.Errorf(codes.Internal, "Internal server error")
+		return nil, faults.ErrInternalDelete
 	}
 }

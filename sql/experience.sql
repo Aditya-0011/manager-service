@@ -181,19 +181,21 @@ begin
     end if;
 
     if p_id > 0 then
-        if exists (select 1 from portfolio.experience where id = p_id and userId = p_userId for update) then
-            v_experience_id := p_id;
-            update portfolio.experience 
-            set company = p_company, 
-                start = v_earliest_start_str, 
-                "end" = v_final_end, 
-                tenure = v_tenure,
-                updatedAt = now()
-            where id = v_experience_id;
-        else
+        update portfolio.experience 
+        set company = p_company, 
+            start = v_earliest_start_str, 
+            "end" = v_final_end, 
+            tenure = v_tenure,
+            updatedAt = now()
+        where id = p_id and userId = p_userId;
+        
+        if not found then
             outcode := 1;
             return;
         end if;
+        
+        v_experience_id := p_id;
+
     else
         insert into portfolio.experience (userId, company, start, "end", tenure) 
         values (p_userId, p_company, v_earliest_start_str, v_final_end, v_tenure) 
@@ -248,7 +250,9 @@ begin
 
     outcode := -1;
 exception 
-    when others then outcode := 2;
+    when others then 
+        raise warning 'DB Error: %', sqlerrm;
+        outcode := 2;
 end;
 $$ language plpgsql security definer;
 
@@ -258,18 +262,21 @@ create or replace function portfolio.delete_experience(
     out outcode smallint
 ) as $$
 begin 
-    if exists (select 1 from portfolio.experience where id = p_id and userId = p_userId for update) then
-        delete from portfolio.project_position where positionId in (select id from portfolio.position where experienceId = p_id);
-        delete from portfolio.technology_experience where experienceId = p_id;
-        delete from portfolio.position where experienceId = p_id;
-        delete from portfolio.experience where id = p_id;
-    else
+    perform 1 from portfolio.experience where id = p_id and userId = p_userId for update;
+    if not found then
         outcode := 1;
         return;
     end if;
+
+    delete from portfolio.project_position where positionId in (select id from portfolio.position where experienceId = p_id);
+    delete from portfolio.technology_experience where experienceId = p_id;
+    delete from portfolio.position where experienceId = p_id;
+    delete from portfolio.experience where id = p_id;
     outcode := -1;
 exception 
-    when others then outcode := 2;
+    when others then 
+        raise warning 'DB Error: %', sqlerrm;
+        outcode := 2;
 end;
 $$ language plpgsql security definer;
 

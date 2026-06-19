@@ -4,7 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"manager/utils"
+	"manager/internal/timeout"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -15,13 +16,20 @@ type PostgresParams struct {
 }
 
 func connectPostgres(c context.Context, url string) (*PostgresParams, error) {
-	ctx, cancel := context.WithTimeout(c, utils.TimeoutDuration)
+	ctx, cancel := context.WithTimeout(c, timeout.Duration)
 	defer cancel()
 
 	config, err := pgxpool.ParseConfig(url)
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse database url: %w", err)
 	}
+
+	config.MaxConns = 3
+	config.MinConns = 1
+	config.MaxConnLifetime = 30 * time.Minute
+	config.MaxConnLifetimeJitter = 5 * time.Minute
+	config.MaxConnIdleTime = 5 * time.Minute
+	config.HealthCheckPeriod = 1 * time.Minute
 
 	config.AfterConnect = func(ct context.Context, conn *pgx.Conn) error {
 		typeNames := []string{
@@ -47,13 +55,16 @@ func connectPostgres(c context.Context, url string) (*PostgresParams, error) {
 		return nil, fmt.Errorf("unable to ping database: %w", err)
 	}
 
-	slog.Info("Successfully connected to Postgres pool")
+	slog.LogAttrs(ctx, slog.LevelInfo, "Successfully connected to Postgres pool",
+		slog.Int("maxConns", int(config.MaxConns)),
+		slog.Int("minConns", int(config.MinConns)),
+	)
 
 	return &PostgresParams{Pool: pool}, nil
 }
 
 func (p *PostgresParams) disconnectPostgres() error {
-	slog.Info("Disconnecting from Postgres...")
+	slog.LogAttrs(context.Background(), slog.LevelInfo, "Disconnecting from Postgres...")
 	p.Pool.Close()
 	return nil
 }

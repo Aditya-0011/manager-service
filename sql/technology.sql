@@ -46,19 +46,22 @@ create or replace function portfolio.edit_technology(
 as $$
 begin 
     if p_id > 0 then
-        if exists (select 1 from portfolio.technology where id = p_id and userId = p_userId for update) then
-            update portfolio.technology set name = p_name, imageUrl = p_imageUrl, fallbackImageUrl = p_fallbackImageUrl, category = p_category::smallint, updatedAt = now()
-            where id = p_id;
-        else
+        update portfolio.technology set name = p_name, imageUrl = p_imageUrl, fallbackImageUrl = p_fallbackImageUrl, category = p_category::smallint, updatedAt = now()
+        where id = p_id and userId = p_userId;
+        
+        if not found then
             outcode := 1;
             return;
         end if;
+
     else
         insert into portfolio.technology (userId, name, imageUrl, fallbackImageUrl, category) values (p_userId, p_name, p_imageUrl, p_fallbackImageUrl, p_category::smallint);
     end if;
     outcode := -1;
 exception 
-    when others then outcode := 2;
+    when others then 
+        raise warning 'DB Error: %', sqlerrm;
+        outcode := 2;
 end;
 $$ language plpgsql security definer;
 
@@ -68,17 +71,20 @@ create or replace function portfolio.delete_technology(
     out outcode smallint
 ) as $$
 begin 
-    if exists (select 1 from portfolio.technology where id = p_id and userId = p_userId for update) then
-        delete from portfolio.technology_project where technologyId = p_id;
-        delete from portfolio.technology_experience where technologyId = p_id;
-        delete from portfolio.technology where id = p_id;
-    else
+    perform 1 from portfolio.technology where id = p_id and userId = p_userId for update;
+    if not found then
         outcode := 1;
         return;
     end if;
+
+    delete from portfolio.technology_project where technologyId = p_id;
+    delete from portfolio.technology_experience where technologyId = p_id;
+    delete from portfolio.technology where id = p_id;
     outcode := -1;
 exception 
-    when others then outcode := 2;
+    when others then 
+        raise warning 'DB Error: %', sqlerrm;
+        outcode := 2;
 end;
 $$ language plpgsql security definer;
 

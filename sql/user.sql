@@ -24,15 +24,18 @@ create or replace function portfolio.edit_user(
 )
 as $$
 begin
-    if exists (select 1 from portfolio.user where id = p_id for update) then
-        update portfolio.user set about = p_about, coverImage = p_coverImage, updatedAt = now()
-        where id = p_id;
-    else
-        insert into portfolio.user (id, about, coverImage) values (p_id, p_about, p_coverImage);
-    end if;
+    insert into portfolio.user (id, about, coverImage) 
+    values (p_id, p_about, p_coverImage)
+    on conflict (id) do update 
+    set about = excluded.about, 
+        coverImage = excluded.coverImage, 
+        updatedAt = now();
+        
     outcode := -1;
 exception 
-    when others then outcode := 2;
+    when others then 
+        raise warning 'DB Error: %', sqlerrm;
+        outcode := 2;
 end;
 $$ language plpgsql security definer;
 

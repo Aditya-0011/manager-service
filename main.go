@@ -2,32 +2,40 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"manager/controller"
 	"manager/db"
+	"manager/internal/timeout"
 	"manager/middlewares"
-	"manager/utils"
 	"net"
 	"os"
 	"os/signal"
+	"runtime"
+	"runtime/debug"
 	"syscall"
 	"time"
 
 	"buf.build/go/protovalidate"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/keepalive"
 )
 
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	slog.SetDefault(logger)
 
-	setupCtx, setupCancel := context.WithTimeout(context.Background(), utils.TimeoutDuration)
+	slog.LogAttrs(context.Background(), slog.LevelInfo, "runtime config",
+		slog.Int("GOMAXPROCS", runtime.GOMAXPROCS(0)),
+		slog.Int("NumCPU", runtime.NumCPU()),
+		slog.Int64("GOMEMLIMIT_MiB", debug.SetMemoryLimit(-1)/1024/1024),
+	)
+
+	setupCtx, setupCancel := context.WithTimeout(context.Background(), timeout.Duration)
 	defer setupCancel()
 
 	database, err := db.Setup(setupCtx)
 	if err != nil {
-		slog.Error("Failed to setup databases", "error", err)
+		slog.LogAttrs(context.Background(), slog.LevelError, "Failed to setup databases", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
 	defer database.Cleanup()
@@ -37,21 +45,35 @@ func main() {
 		port = "7296"
 	}
 
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", port))
+	lis, err := net.Listen("tcp", ":"+port)
 	if err != nil {
-		slog.Error("failed to listen", "error", err)
+		slog.LogAttrs(context.Background(), slog.LevelError, "failed to listen", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
 
 	validator, err := protovalidate.New()
 	if err != nil {
-		slog.Error("failed to initialize validator", "error", err)
+		slog.LogAttrs(context.Background(), slog.LevelError, "failed to initialize validator", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
 
 	s := grpc.NewServer(
-		grpc.UnaryInterceptor(middlewares.ValidationInterceptor(validator)),
-		grpc.MaxConcurrentStreams(1000),
+		grpc.ChainUnaryInterceptor(
+			middlewares.LoggingInterceptor(),
+			middlewares.ValidationInterceptor(validator),
+		),
+		grpc.MaxConcurrentStreams(100),
+		grpc.KeepaliveParams(keepalive.ServerParameters{
+			MaxConnectionIdle: 5 * time.Minute,
+			MaxConnectionAge:  30 * time.Minute,
+			Time:              1 * time.Minute,
+			Timeout:           20 * time.Second,
+		}),
+		grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{
+			MinTime:             30 * time.Second,
+			PermitWithoutStream: false,
+		}),
+		grpc.MaxRecvMsgSize(4*1024*1024),
 	)
 
 	controller.Setup(s, database)
@@ -62,7 +84,7 @@ func main() {
 	errChan := make(chan error, 1)
 
 	go func() {
-		slog.Info("gRPC server listening", "address", lis.Addr())
+		slog.LogAttrs(context.Background(), slog.LevelInfo, "gRPC server listening", slog.String("address", lis.Addr().String()))
 		if err := s.Serve(lis); err != nil {
 			errChan <- err
 		}
@@ -70,10 +92,10 @@ func main() {
 
 	select {
 	case <-quit:
-		slog.Info("Interrupt received. Starting graceful shutdown...")
+		slog.LogAttrs(context.Background(), slog.LevelInfo, "Interrupt received. Starting graceful shutdown...")
 	case err := <-errChan:
-		slog.Error("gRPC server failed", "error", err)
-		slog.Info("Starting graceful shutdown due to server error...")
+		slog.LogAttrs(context.Background(), slog.LevelError, "gRPC server failed", slog.String("error", err.Error()))
+		slog.LogAttrs(context.Background(), slog.LevelInfo, "Starting graceful shutdown due to server error...")
 	}
 
 	stopped := make(chan struct{})
@@ -82,13 +104,16 @@ func main() {
 		close(stopped)
 	}()
 
+	shutdownTimer := time.NewTimer(timeout.Duration)
+	defer shutdownTimer.Stop()
+
 	select {
-	case <-time.After(utils.TimeoutDuration):
-		slog.Info("Timeout reached (5s). Forcing server shutdown...")
+	case <-shutdownTimer.C:
+		slog.LogAttrs(context.Background(), slog.LevelInfo, "Timeout reached. Forcing server shutdown...")
 		s.Stop()
 	case <-stopped:
-		slog.Info("Server gracefully stopped within timeout.")
+		slog.LogAttrs(context.Background(), slog.LevelInfo, "Server gracefully stopped within timeout.")
 	}
 
-	slog.Info("Shutdown complete. Exiting main...")
+	slog.LogAttrs(context.Background(), slog.LevelInfo, "Shutdown complete. Exiting main...")
 }

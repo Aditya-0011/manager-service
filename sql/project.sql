@@ -61,11 +61,15 @@ begin
     end if;
 
     if p_id > 0 then
-        if exists (select 1 from portfolio.project where id = p_id and userId = p_userId for update) then
-            v_project_id := p_id;
-
-            update portfolio.project set name = p_name, description = p_description, imageUrl = p_imageUrl, projectUrl = p_projectUrl, githubUrl = p_githubUrl, featured = p_featured, updatedAt = now()
-            where id = v_project_id;
+        update portfolio.project set name = p_name, description = p_description, imageUrl = p_imageUrl, projectUrl = p_projectUrl, githubUrl = p_githubUrl, featured = p_featured, updatedAt = now()
+        where id = p_id and userId = p_userId;
+        
+        if not found then
+            outcode := 1;
+            return;
+        end if;
+        
+        v_project_id := p_id;
 
             delete from portfolio.technology_project 
             where projectId = v_project_id 
@@ -76,10 +80,7 @@ begin
                 select v_project_id, t_id from unnest(p_technologies) as t_id
                 on conflict (projectId, technologyId) do nothing;
             end if;
-        else
-            outcode := 1;
-            return;
-        end if;
+
     else
         insert into portfolio.project (userId, name, description, imageUrl, projectUrl, githubUrl, featured) 
         values (p_userId, p_name, p_description, p_imageUrl, p_projectUrl, p_githubUrl, p_featured)
@@ -92,7 +93,9 @@ begin
     end if;
     outcode := -1;
 exception 
-    when others then outcode := 2;
+    when others then 
+        raise warning 'DB Error: %', sqlerrm;
+        outcode := 2;
 end;
 $$ language plpgsql security definer;
 
@@ -102,17 +105,20 @@ create or replace function portfolio.delete_project(
     out outcode smallint
 ) as $$
 begin 
-    if exists (select 1 from portfolio.project where id = p_id and userId = p_userId for update) then
-        delete from portfolio.technology_project where projectId = p_id;
-        delete from portfolio.project_position where projectId = p_id;
-        delete from portfolio.project where id = p_id;
-    else
+    perform 1 from portfolio.project where id = p_id and userId = p_userId for update;
+    if not found then
         outcode := 1;
         return;
     end if;
+
+    delete from portfolio.technology_project where projectId = p_id;
+    delete from portfolio.project_position where projectId = p_id;
+    delete from portfolio.project where id = p_id;
     outcode := -1;
 exception 
-    when others then outcode := 2;
+    when others then 
+        raise warning 'DB Error: %', sqlerrm;
+        outcode := 2;
 end;
 $$ language plpgsql security definer;
 
