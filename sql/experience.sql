@@ -154,18 +154,18 @@ begin
         select count(distinct to_char(m, 'YYYY-MM')) into v_months
         from (
             select generate_series(
-                case when length(pos.start) = 7 then (pos.start || '-01')::date else pos.start::date end,
+                case when length(p.start) = 7 then (p.start || '-01')::date else p.start::date end,
                 least(
                     case 
-                        when pos."end" is null or pos."end" = '' or pos."end" ilike 'present' then current_date 
-                        when length(pos."end") = 7 then (pos."end" || '-01')::date 
-                        else pos."end"::date 
+                        when p."end" is null or p."end" = '' or p."end" ilike 'present' then current_date 
+                        when length(p."end") = 7 then (p."end" || '-01')::date 
+                        else p."end"::date 
                     end,
                     current_date
                 ),
                 '1 month'::interval
             ) as m
-            from unnest(p_positions) as pos
+            from unnest(p_positions) as p
         ) t;
 
         v_years := v_months / 12;
