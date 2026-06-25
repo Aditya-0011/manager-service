@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"manager/internal/model"
 	"manager/internal/timeout"
 	"time"
 
@@ -43,6 +44,10 @@ func connectPostgres(c context.Context, url string) (*PostgresParams, error) {
 			}
 			conn.TypeMap().RegisterType(dt)
 		}
+		
+		conn.TypeMap().RegisterDefaultPgType(model.PositionCreate{}, "portfolio.position_create")
+		conn.TypeMap().RegisterDefaultPgType([]model.PositionCreate{}, "portfolio._position_create")
+		
 		return nil
 	}
 
