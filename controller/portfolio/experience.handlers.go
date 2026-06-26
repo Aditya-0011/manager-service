@@ -56,7 +56,7 @@ func (ps *portfolioServer) GetExperiences(c context.Context, req *manager.Simple
 						join portfolio.project pr on pp.projectId = pr.id
 						where pp.positionId = pos.id
 					), '[]'::jsonb)
-				)
+				) order by pos.start desc
 			)
 			from portfolio.position pos
 			where pos.experienceId = e.id
