@@ -18,8 +18,8 @@ create table if not exists portfolio.message (
     messages_count int
 );
 
-create index idx_message_userId on portfolio.message(userId);
-create index idx_message_email on portfolio.message(email);
+create index if not exists idx_message_userId on portfolio.message(userId);
+create index if not exists idx_message_email on portfolio.message(email);
 
 create or replace function portfolio.add_message(
     in p_userId int,
@@ -50,7 +50,7 @@ exception
         raise warning 'DB Error: %', sqlerrm;
         outcode := 2;
 end;
-$$ language plpgsql security definer;
+$$ language plpgsql security definer set search_path = '';
 
 create or replace function portfolio.delete_messages(
     in p_id uuid, 
@@ -70,7 +70,7 @@ exception
         raise warning 'DB Error: %', sqlerrm;
         outcode := 2;
 end;
-$$ language plpgsql security definer;
+$$ language plpgsql security definer set search_path = '';
 
 revoke insert, update, delete on table 
     portfolio.message
@@ -79,6 +79,11 @@ from manager_service;
 grant select on table 
     portfolio.message
 to manager_service;
+
+revoke execute on function 
+    portfolio.add_message(int, varchar, varchar, varchar),
+    portfolio.delete_messages(uuid, int)
+from public;
 
 grant execute on function 
     portfolio.add_message(int, varchar, varchar, varchar),

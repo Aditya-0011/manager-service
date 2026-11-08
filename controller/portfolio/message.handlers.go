@@ -4,18 +4,14 @@ import (
 	"context"
 	"log/slog"
 	"manager/internal/faults"
-	"manager/internal/timeout"
 
 	"github.com/Aditya-0011/common/contracts/go/manager"
 )
 
-func (ps *portfolioServer) GetMessages(c context.Context, req *manager.SimpleRequest) (*manager.GetMessagesResponse, error) {
-	ctx, cancel := timeout.WithDeadline(c, timeout.Duration)
-	defer cancel()
+func (ps *portfolioServer) GetMessages(ctx context.Context, req *manager.SimpleRequest) (*manager.GetMessagesResponse, error) {
+	query := `select id, name, email, messages from portfolio.message where userId = $1 order by id desc`
 
-	query := `select id, name, email, messages from portfolio.message where userId = $1`
-
-	rows, err := ps.postgres.Pool.Query(ctx, query, req.GetUserId())
+	rows, err := ps.pool.Query(ctx, query, req.GetUserId())
 	if err != nil {
 		slog.LogAttrs(ctx, slog.LevelError, "error querying database",
 			slog.Int64("userId", int64(req.GetUserId())),
@@ -64,15 +60,12 @@ func (ps *portfolioServer) GetMessages(c context.Context, req *manager.SimpleReq
 	}, nil
 }
 
-func (ps *portfolioServer) AddMessage(c context.Context, req *manager.AddMessageRequest) (*manager.SimpleResponse, error) {
-	ctx, cancel := timeout.WithDeadline(c, timeout.Duration)
-	defer cancel()
-
+func (ps *portfolioServer) AddMessage(ctx context.Context, req *manager.AddMessageRequest) (*manager.SimpleResponse, error) {
 	query := `select outcode from portfolio.add_message($1, $2, $3, $4)`
 
 	var outcode int16
 
-	err := ps.postgres.Pool.QueryRow(ctx, query, req.GetUserId(), req.GetName(), req.GetEmail(), req.GetMessage()).Scan(&outcode)
+	err := ps.pool.QueryRow(ctx, query, req.GetUserId(), req.GetName(), req.GetEmail(), req.GetMessage()).Scan(&outcode)
 	if err != nil {
 		slog.LogAttrs(ctx, slog.LevelError, "error querying database",
 			slog.Int64("userId", int64(req.GetUserId())),
@@ -94,14 +87,11 @@ func (ps *portfolioServer) AddMessage(c context.Context, req *manager.AddMessage
 
 }
 
-func (ps *portfolioServer) DeleteMessage(c context.Context, req *manager.DeleteMessageRequest) (*manager.SimpleResponse, error) {
-	ctx, cancel := timeout.WithDeadline(c, timeout.Duration)
-	defer cancel()
-
+func (ps *portfolioServer) DeleteMessage(ctx context.Context, req *manager.DeleteMessageRequest) (*manager.SimpleResponse, error) {
 	query := `select outcode from portfolio.delete_messages($1, $2)`
 
 	var outcode int16
-	err := ps.postgres.Pool.QueryRow(ctx, query, req.GetId(), req.GetUserId()).Scan(&outcode)
+	err := ps.pool.QueryRow(ctx, query, req.GetId(), req.GetUserId()).Scan(&outcode)
 	if err != nil {
 		slog.LogAttrs(ctx, slog.LevelError, "error querying database",
 			slog.String("messageId", req.GetId()),

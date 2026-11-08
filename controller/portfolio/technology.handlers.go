@@ -4,17 +4,13 @@ import (
 	"context"
 	"log/slog"
 	"manager/internal/faults"
-	"manager/internal/timeout"
 	"time"
 
 	"github.com/Aditya-0011/common/contracts/go/manager"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func (ps *portfolioServer) GetTechnologies(c context.Context, req *manager.SimpleRequest) (*manager.GetTechnologiesResponse, error) {
-	ctx, cancel := timeout.WithDeadline(c, timeout.Duration)
-	defer cancel()
-
+func (ps *portfolioServer) GetTechnologies(ctx context.Context, req *manager.SimpleRequest) (*manager.GetTechnologiesResponse, error) {
 	query := `select 
 				id, 
 				name, 
@@ -23,9 +19,10 @@ func (ps *portfolioServer) GetTechnologies(c context.Context, req *manager.Simpl
 				category, 
 				updatedAt 
 			  from portfolio.technology 
-			  where userId = $1`
+			  where userId = $1
+			  order by category, name`
 
-	rows, err := ps.postgres.Pool.Query(ctx, query, req.GetUserId())
+	rows, err := ps.pool.Query(ctx, query, req.GetUserId())
 
 	if err != nil {
 		slog.LogAttrs(ctx, slog.LevelError, "error querying database",
@@ -80,15 +77,12 @@ func (ps *portfolioServer) GetTechnologies(c context.Context, req *manager.Simpl
 	}, nil
 }
 
-func (ps *portfolioServer) CreateTechnology(c context.Context, req *manager.TechnologyCreateRequest) (*manager.SimpleResponse, error) {
-	ctx, cancel := timeout.WithDeadline(c, timeout.Duration)
-	defer cancel()
-
+func (ps *portfolioServer) CreateTechnology(ctx context.Context, req *manager.TechnologyCreateRequest) (*manager.SimpleResponse, error) {
 	query := `select outcode from portfolio.edit_technology($1, $2, $3, $4, $5, $6)`
 
 	var outcode int16
 
-	err := ps.postgres.Pool.QueryRow(ctx, query,
+	err := ps.pool.QueryRow(ctx, query,
 		-1,
 		req.GetUserId(),
 		req.GetName(),
@@ -114,15 +108,12 @@ func (ps *portfolioServer) CreateTechnology(c context.Context, req *manager.Tech
 	}
 }
 
-func (ps *portfolioServer) UpdateTechnology(c context.Context, req *manager.TechnologyUpdateRequest) (*manager.SimpleResponse, error) {
-	ctx, cancel := timeout.WithDeadline(c, timeout.Duration)
-	defer cancel()
-
+func (ps *portfolioServer) UpdateTechnology(ctx context.Context, req *manager.TechnologyUpdateRequest) (*manager.SimpleResponse, error) {
 	query := `select outcode from portfolio.edit_technology($1, $2, $3, $4, $5, $6)`
 
 	var outcode int16
 
-	err := ps.postgres.Pool.QueryRow(ctx, query,
+	err := ps.pool.QueryRow(ctx, query,
 		req.GetId(),
 		req.GetUserId(),
 		req.GetName(),
@@ -151,15 +142,12 @@ func (ps *portfolioServer) UpdateTechnology(c context.Context, req *manager.Tech
 	}
 }
 
-func (ps *portfolioServer) DeleteTechnology(c context.Context, req *manager.DeleteRequest) (*manager.SimpleResponse, error) {
-	ctx, cancel := timeout.WithDeadline(c, timeout.Duration)
-	defer cancel()
-
+func (ps *portfolioServer) DeleteTechnology(ctx context.Context, req *manager.DeleteRequest) (*manager.SimpleResponse, error) {
 	query := `select outcode from portfolio.delete_technology($1, $2)`
 
 	var outcode int16
 
-	err := ps.postgres.Pool.QueryRow(ctx, query, req.GetId(), req.GetUserId()).Scan(&outcode)
+	err := ps.pool.QueryRow(ctx, query, req.GetId(), req.GetUserId()).Scan(&outcode)
 	if err != nil {
 		slog.LogAttrs(ctx, slog.LevelError, "error querying database",
 			slog.Int64("technologyId", int64(req.GetId())),

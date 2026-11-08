@@ -2,38 +2,27 @@ package user
 
 import (
 	"context"
+	"errors"
 	"log/slog"
-	"manager/db"
 	"manager/internal/faults"
-	"manager/internal/timeout"
 	"time"
 
 	"github.com/Aditya-0011/common/contracts/go/manager"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-type (
-	userServer struct {
-		manager.UnimplementedUserServiceServer
-		postgres *db.PostgresParams
-	}
-
-	UserServerParams struct {
-		Postgres *db.PostgresParams
-	}
-)
-
-func NewUserServer(params UserServerParams) *userServer {
-	return &userServer{
-		postgres: params.Postgres,
-	}
+type userServer struct {
+	manager.UnimplementedUserServiceServer
+	pool *pgxpool.Pool
 }
 
-func (us *userServer) GetUserDetails(c context.Context, req *manager.SimpleRequest) (*manager.GetUserDetailsResponse, error) {
-	ctx, cancel := timeout.WithDeadline(c, timeout.Duration)
-	defer cancel()
+func NewServer(pool *pgxpool.Pool) manager.UserServiceServer {
+	return &userServer{pool: pool}
+}
 
+func (us *userServer) GetUserDetails(ctx context.Context, req *manager.SimpleRequest) (*manager.GetUserDetailsResponse, error) {
 	var (
 		about      string
 		coverImage string
@@ -42,9 +31,9 @@ func (us *userServer) GetUserDetails(c context.Context, req *manager.SimpleReque
 
 	query := `select about, coverImage, updatedAt from portfolio.user where id = $1`
 
-	err := us.postgres.Pool.QueryRow(ctx, query, req.GetUserId()).Scan(&about, &coverImage, &updatedAt)
+	err := us.pool.QueryRow(ctx, query, req.GetUserId()).Scan(&about, &coverImage, &updatedAt)
 	if err != nil {
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return &manager.GetUserDetailsResponse{}, nil
 		}
 		slog.LogAttrs(ctx, slog.LevelError, "error querying database",
@@ -61,17 +50,14 @@ func (us *userServer) GetUserDetails(c context.Context, req *manager.SimpleReque
 	}, nil
 }
 
-func (us *userServer) EditUserDetails(c context.Context, req *manager.EditUserDetailsRequest) (*manager.SimpleResponse, error) {
-	ctx, cancel := timeout.WithDeadline(c, timeout.Duration)
-	defer cancel()
-
+func (us *userServer) EditUserDetails(ctx context.Context, req *manager.EditUserDetailsRequest) (*manager.SimpleResponse, error) {
 	var outcode int16
 
 	query := `select outcode from portfolio.edit_user($1, $2, $3)`
 
-	err := us.postgres.Pool.QueryRow(ctx, query, req.GetUserId(), req.GetAbout(), req.GetCoverImage()).Scan(&outcode)
+	err := us.pool.QueryRow(ctx, query, req.GetUserId(), req.GetAbout(), req.GetCoverImage()).Scan(&outcode)
 	if err != nil {
-		slog.LogAttrs(ctx, slog.LevelError, "error creating user",
+		slog.LogAttrs(ctx, slog.LevelError, "error updating user",
 			slog.Int64("userId", int64(req.GetUserId())),
 			slog.String("error", err.Error()),
 		)

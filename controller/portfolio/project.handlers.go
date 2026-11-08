@@ -4,7 +4,6 @@ import (
 	"context"
 	"log/slog"
 	"manager/internal/faults"
-	"manager/internal/timeout"
 	"time"
 
 	"github.com/Aditya-0011/common/contracts/go/manager"
@@ -12,10 +11,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func (ps *portfolioServer) GetProjects(c context.Context, req *manager.SimpleRequest) (*manager.GetProjectsResponse, error) {
-	ctx, cancel := timeout.WithDeadline(c, timeout.Duration)
-	defer cancel()
-
+func (ps *portfolioServer) GetProjects(ctx context.Context, req *manager.SimpleRequest) (*manager.GetProjectsResponse, error) {
 	query := `
 	select 
 		p.id, p.name, p.description, p.imageUrl, p.projectUrl, p.githubUrl, p.featured, p.updatedAt,
@@ -34,9 +30,10 @@ func (ps *portfolioServer) GetProjects(c context.Context, req *manager.SimpleReq
 	left join portfolio.technology t on tp.technologyId = t.id
 	where p.userId = $1
 	group by p.id
+	order by p.featured desc, p.id desc
 	`
 
-	rows, err := ps.postgres.Pool.Query(ctx, query, req.GetUserId())
+	rows, err := ps.pool.Query(ctx, query, req.GetUserId())
 
 	if err != nil {
 		slog.LogAttrs(ctx, slog.LevelError, "error querying database",
@@ -75,6 +72,7 @@ func (ps *portfolioServer) GetProjects(c context.Context, req *manager.SimpleReq
 		if len(techBytes) > 0 {
 			if err := sonic.Unmarshal(techBytes, &technologies); err != nil {
 				slog.LogAttrs(ctx, slog.LevelError, "error unmarshaling technologies", slog.String("error", err.Error()))
+				return nil, faults.ErrInternal
 			}
 		}
 
@@ -104,15 +102,12 @@ func (ps *portfolioServer) GetProjects(c context.Context, req *manager.SimpleReq
 	}, nil
 }
 
-func (ps *portfolioServer) CreateProject(c context.Context, req *manager.ProjectCreateRequest) (*manager.SimpleResponse, error) {
-	ctx, cancel := timeout.WithDeadline(c, timeout.Duration)
-	defer cancel()
-
+func (ps *portfolioServer) CreateProject(ctx context.Context, req *manager.ProjectCreateRequest) (*manager.SimpleResponse, error) {
 	query := `select outcode from portfolio.edit_project($1, $2, $3, $4, $5, $6, $7, $8, $9)`
 
 	var outcode int16
 
-	err := ps.postgres.Pool.QueryRow(ctx, query,
+	err := ps.pool.QueryRow(ctx, query,
 		-1,
 		req.GetUserId(),
 		req.GetName(),
@@ -141,15 +136,12 @@ func (ps *portfolioServer) CreateProject(c context.Context, req *manager.Project
 	}
 }
 
-func (ps *portfolioServer) UpdateProject(c context.Context, req *manager.ProjectUpdateRequest) (*manager.SimpleResponse, error) {
-	ctx, cancel := timeout.WithDeadline(c, timeout.Duration)
-	defer cancel()
-
+func (ps *portfolioServer) UpdateProject(ctx context.Context, req *manager.ProjectUpdateRequest) (*manager.SimpleResponse, error) {
 	query := `select outcode from portfolio.edit_project($1, $2, $3, $4, $5, $6, $7, $8, $9)`
 
 	var outcode int16
 
-	err := ps.postgres.Pool.QueryRow(ctx, query,
+	err := ps.pool.QueryRow(ctx, query,
 		req.GetId(),
 		req.GetUserId(),
 		req.GetName(),
@@ -181,15 +173,12 @@ func (ps *portfolioServer) UpdateProject(c context.Context, req *manager.Project
 	}
 }
 
-func (ps *portfolioServer) DeleteProject(c context.Context, req *manager.DeleteRequest) (*manager.SimpleResponse, error) {
-	ctx, cancel := timeout.WithDeadline(c, timeout.Duration)
-	defer cancel()
-
+func (ps *portfolioServer) DeleteProject(ctx context.Context, req *manager.DeleteRequest) (*manager.SimpleResponse, error) {
 	query := `select outcode from portfolio.delete_project($1, $2)`
 
 	var outcode int16
 
-	err := ps.postgres.Pool.QueryRow(ctx, query, req.GetId(), req.GetUserId()).Scan(&outcode)
+	err := ps.pool.QueryRow(ctx, query, req.GetId(), req.GetUserId()).Scan(&outcode)
 	if err != nil {
 		slog.LogAttrs(ctx, slog.LevelError, "error querying database",
 			slog.Int64("projectId", int64(req.GetId())),

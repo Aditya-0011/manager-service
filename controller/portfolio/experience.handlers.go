@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"manager/internal/faults"
 	"manager/internal/model"
-	"manager/internal/timeout"
 	"slices"
 	"time"
 
@@ -17,10 +16,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func (ps *portfolioServer) GetExperiences(c context.Context, req *manager.SimpleRequest) (*manager.GetExperiencesResponse, error) {
-	ctx, cancel := timeout.WithDeadline(c, timeout.Duration)
-	defer cancel()
-
+func (ps *portfolioServer) GetExperiences(ctx context.Context, req *manager.SimpleRequest) (*manager.GetExperiencesResponse, error) {
 	query := `
 	select 
 		e.id, e.company, e.start, e."end", e.tenure, e.updatedAt,
@@ -66,7 +62,7 @@ func (ps *portfolioServer) GetExperiences(c context.Context, req *manager.Simple
 	order by e.start desc
 	`
 
-	rows, err := ps.postgres.Pool.Query(ctx, query, req.GetUserId())
+	rows, err := ps.pool.Query(ctx, query, req.GetUserId())
 	if err != nil {
 		slog.LogAttrs(ctx, slog.LevelError, "error querying database",
 			slog.Int64("userId", int64(req.GetUserId())),
@@ -103,6 +99,7 @@ func (ps *portfolioServer) GetExperiences(c context.Context, req *manager.Simple
 		if len(techBytes) > 0 {
 			if err := sonic.Unmarshal(techBytes, &technologies); err != nil {
 				slog.LogAttrs(ctx, slog.LevelError, "error unmarshaling technologies", slog.String("error", err.Error()))
+				return nil, faults.ErrInternal
 			}
 		}
 
@@ -110,6 +107,7 @@ func (ps *portfolioServer) GetExperiences(c context.Context, req *manager.Simple
 		if len(posBytes) > 0 {
 			if err := sonic.Unmarshal(posBytes, &positions); err != nil {
 				slog.LogAttrs(ctx, slog.LevelError, "error unmarshaling positions", slog.String("error", err.Error()))
+				return nil, faults.ErrInternal
 			}
 		}
 
@@ -150,10 +148,7 @@ func (ps *portfolioServer) GetExperiences(c context.Context, req *manager.Simple
 	}, nil
 }
 
-func (ps *portfolioServer) CreateExperience(c context.Context, req *manager.ExperienceCreateRequest) (*manager.SimpleResponse, error) {
-	ctx, cancel := timeout.WithDeadline(c, timeout.Duration)
-	defer cancel()
-
+func (ps *portfolioServer) CreateExperience(ctx context.Context, req *manager.ExperienceCreateRequest) (*manager.SimpleResponse, error) {
 	query := `select outcode from portfolio.edit_experience($1, $2, $3, $4, $5)`
 	for i, p := range req.GetPositions() {
 		if err := validatePosition(p.GetStart(), p.End, i); err != nil {
@@ -175,7 +170,7 @@ func (ps *portfolioServer) CreateExperience(c context.Context, req *manager.Expe
 
 	var outcode int16
 
-	err := ps.postgres.Pool.QueryRow(ctx, query,
+	err := ps.pool.QueryRow(ctx, query,
 		-1,
 		req.GetUserId(),
 		req.GetCompany(),
@@ -200,10 +195,7 @@ func (ps *portfolioServer) CreateExperience(c context.Context, req *manager.Expe
 	}
 }
 
-func (ps *portfolioServer) UpdateExperience(c context.Context, req *manager.ExperienceUpdateRequest) (*manager.SimpleResponse, error) {
-	ctx, cancel := timeout.WithDeadline(c, timeout.Duration)
-	defer cancel()
-
+func (ps *portfolioServer) UpdateExperience(ctx context.Context, req *manager.ExperienceUpdateRequest) (*manager.SimpleResponse, error) {
 	query := `select outcode from portfolio.edit_experience($1, $2, $3, $4, $5)`
 	for i, p := range req.GetPositions() {
 		if err := validatePosition(p.GetStart(), p.End, i); err != nil {
@@ -231,7 +223,7 @@ func (ps *portfolioServer) UpdateExperience(c context.Context, req *manager.Expe
 
 	var outcode int16
 
-	err := ps.postgres.Pool.QueryRow(ctx, query,
+	err := ps.pool.QueryRow(ctx, query,
 		req.GetId(),
 		req.GetUserId(),
 		req.GetCompany(),
@@ -259,15 +251,12 @@ func (ps *portfolioServer) UpdateExperience(c context.Context, req *manager.Expe
 	}
 }
 
-func (ps *portfolioServer) DeleteExperience(c context.Context, req *manager.DeleteRequest) (*manager.SimpleResponse, error) {
-	ctx, cancel := timeout.WithDeadline(c, timeout.Duration)
-	defer cancel()
-
+func (ps *portfolioServer) DeleteExperience(ctx context.Context, req *manager.DeleteRequest) (*manager.SimpleResponse, error) {
 	query := `select outcode from portfolio.delete_experience($1, $2)`
 
 	var outcode int16
 
-	err := ps.postgres.Pool.QueryRow(ctx, query, req.GetId(), req.GetUserId()).Scan(&outcode)
+	err := ps.pool.QueryRow(ctx, query, req.GetId(), req.GetUserId()).Scan(&outcode)
 	if err != nil {
 		slog.LogAttrs(ctx, slog.LevelError, "error querying database",
 			slog.Int64("experienceId", int64(req.GetId())),

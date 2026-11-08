@@ -33,7 +33,7 @@ create table if not exists portfolio.position(
     "end" varchar(100),
     workDone text not null
 );
-create index idx_position_experienceId on portfolio.position(experienceId);
+create index if not exists idx_position_experienceId on portfolio.position(experienceId);
 
 create table if not exists portfolio.experience(
     id int generated always as identity primary key,
@@ -44,16 +44,23 @@ create table if not exists portfolio.experience(
     tenure varchar(100),
     updatedAt timestamptz default now()
 );
-create index idx_experience_userId on portfolio.experience(userId);
+create index if not exists idx_experience_userId on portfolio.experience(userId);
 
-create type portfolio.position_create as(
+do $$
+begin
+    if not exists (select 1 from pg_type t join pg_namespace n on n.oid = t.typnamespace
+                   where n.nspname = 'portfolio' and t.typname = 'position_create') then
+        create type portfolio.position_create as(
     id int,
     role varchar(150),
     start varchar(100),
     "end" varchar(100),
     workDone text,
     projects int[]
-);
+        );
+    end if;
+end
+$$;
 
 create or replace function portfolio.edit_experience(
     in p_id int,
@@ -254,7 +261,7 @@ exception
         raise warning 'DB Error: %', sqlerrm;
         outcode := 2;
 end;
-$$ language plpgsql security definer;
+$$ language plpgsql security definer set search_path = '';
 
 create or replace function portfolio.delete_experience(
     in p_id int,
@@ -278,7 +285,7 @@ exception
         raise warning 'DB Error: %', sqlerrm;
         outcode := 2;
 end;
-$$ language plpgsql security definer;
+$$ language plpgsql security definer set search_path = '';
 
 revoke insert, update, delete on table 
     portfolio.position,
@@ -289,6 +296,11 @@ grant select on table
     portfolio.position,
     portfolio.experience
 to manager_service;
+
+revoke execute on function 
+    portfolio.edit_experience(int, int, varchar, portfolio.position_create[], int[]),
+    portfolio.delete_experience(int, int)
+from public;
 
 grant execute on function 
     portfolio.edit_experience(int, int, varchar, portfolio.position_create[], int[]),

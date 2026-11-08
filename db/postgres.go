@@ -3,26 +3,20 @@ package db
 import (
 	"context"
 	"fmt"
-	"log/slog"
-	"manager/internal/model"
-	"manager/internal/timeout"
 	"time"
+
+	"manager/internal/model"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type PostgresParams struct {
-	Pool *pgxpool.Pool
-}
+var compositeTypes = []string{"portfolio.position_create", "portfolio._position_create"}
 
-func connectPostgres(c context.Context, url string) (*PostgresParams, error) {
-	ctx, cancel := context.WithTimeout(c, timeout.Duration)
-	defer cancel()
-
+func Connect(ctx context.Context, url string) (*pgxpool.Pool, error) {
 	config, err := pgxpool.ParseConfig(url)
 	if err != nil {
-		return nil, fmt.Errorf("unable to parse database url: %w", err)
+		return nil, fmt.Errorf("parsing POSTGRES_URL: %w", err)
 	}
 
 	config.MaxConns = 3
@@ -30,46 +24,28 @@ func connectPostgres(c context.Context, url string) (*PostgresParams, error) {
 	config.MaxConnLifetime = 30 * time.Minute
 	config.MaxConnLifetimeJitter = 5 * time.Minute
 	config.MaxConnIdleTime = 5 * time.Minute
-	config.HealthCheckPeriod = 1 * time.Minute
+	config.HealthCheckPeriod = time.Minute
 
-	config.AfterConnect = func(ct context.Context, conn *pgx.Conn) error {
-		typeNames := []string{
-			"portfolio.position_create",
-			"portfolio._position_create",
-		}
-		for _, name := range typeNames {
-			dt, err := conn.LoadType(ct, name)
+	config.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+		for _, name := range compositeTypes {
+			dt, err := conn.LoadType(ctx, name)
 			if err != nil {
-				return err
+				return fmt.Errorf("loading type %s: %w", name, err)
 			}
 			conn.TypeMap().RegisterType(dt)
 		}
-		
-		conn.TypeMap().RegisterDefaultPgType(model.PositionCreate{}, "portfolio.position_create")
-		conn.TypeMap().RegisterDefaultPgType([]model.PositionCreate{}, "portfolio._position_create")
-		
+		conn.TypeMap().RegisterDefaultPgType(model.PositionCreate{}, compositeTypes[0])
+		conn.TypeMap().RegisterDefaultPgType([]model.PositionCreate{}, compositeTypes[1])
 		return nil
 	}
 
 	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
-		return nil, fmt.Errorf("unable to create connection pool: %w", err)
+		return nil, fmt.Errorf("creating pool: %w", err)
 	}
-
 	if err := pool.Ping(ctx); err != nil {
-		return nil, fmt.Errorf("unable to ping database: %w", err)
+		pool.Close()
+		return nil, fmt.Errorf("pinging database: %w", err)
 	}
-
-	slog.LogAttrs(ctx, slog.LevelInfo, "Successfully connected to Postgres pool",
-		slog.Int("maxConns", int(config.MaxConns)),
-		slog.Int("minConns", int(config.MinConns)),
-	)
-
-	return &PostgresParams{Pool: pool}, nil
-}
-
-func (p *PostgresParams) disconnectPostgres() error {
-	slog.LogAttrs(context.Background(), slog.LevelInfo, "Disconnecting from Postgres...")
-	p.Pool.Close()
-	return nil
+	return pool, nil
 }

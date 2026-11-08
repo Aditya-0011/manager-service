@@ -28,14 +28,14 @@ create table if not exists portfolio.project(
     featured boolean not null,
     updatedAt timestamptz default now()
 );
-create index idx_project_userId on portfolio.project(userId);
+create index if not exists idx_project_userId on portfolio.project(userId);
 
 create table if not exists portfolio.project_position(
     projectId int not null,
     positionId int not null,
     primary key(positionId, projectId)
 );
-create index idx_project_position_projectId on portfolio.project_position(projectId);
+create index if not exists idx_project_position_projectId on portfolio.project_position(projectId);
 
 create or replace function portfolio.edit_project(
     in p_id int, 
@@ -97,7 +97,7 @@ exception
         raise warning 'DB Error: %', sqlerrm;
         outcode := 2;
 end;
-$$ language plpgsql security definer;
+$$ language plpgsql security definer set search_path = '';
 
 create or replace function portfolio.delete_project(
     in p_id int, 
@@ -120,7 +120,7 @@ exception
         raise warning 'DB Error: %', sqlerrm;
         outcode := 2;
 end;
-$$ language plpgsql security definer;
+$$ language plpgsql security definer set search_path = '';
 
 revoke insert, update, delete on table 
     portfolio.project,
@@ -131,6 +131,11 @@ grant select on table
     portfolio.project,
     portfolio.project_position
 to manager_service;
+
+revoke execute on function 
+    portfolio.edit_project(int, int, varchar, text, varchar, varchar, varchar, boolean, int[]),
+    portfolio.delete_project(int, int)
+from public;
 
 grant execute on function 
     portfolio.edit_project(int, int, varchar, text, varchar, varchar, varchar, boolean, int[]),

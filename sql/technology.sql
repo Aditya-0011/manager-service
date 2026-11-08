@@ -18,21 +18,21 @@ create table if not exists portfolio.technology (
     category smallint not null,
     updatedAt timestamptz default now()
 );
-create index idx_technology_userId on portfolio.technology(userId);
+create index if not exists idx_technology_userId on portfolio.technology(userId);
 
 create table if not exists portfolio.technology_project(
     technologyId int not null,
     projectId int not null,
     primary key(projectId, technologyId)
 );
-create index idx_technology_project_technologyId on portfolio.technology_project(technologyId);
+create index if not exists idx_technology_project_technologyId on portfolio.technology_project(technologyId);
 
 create table if not exists portfolio.technology_experience(
     technologyId int not null,
     experienceId int not null,
     primary key(experienceId, technologyId)
 );
-create index idx_technology_experience_technologyId on portfolio.technology_experience(technologyId);
+create index if not exists idx_technology_experience_technologyId on portfolio.technology_experience(technologyId);
 
 create or replace function portfolio.edit_technology(
     in p_id int, 
@@ -63,7 +63,7 @@ exception
         raise warning 'DB Error: %', sqlerrm;
         outcode := 2;
 end;
-$$ language plpgsql security definer;
+$$ language plpgsql security definer set search_path = '';
 
 create or replace function portfolio.delete_technology(
     in p_id int, 
@@ -86,7 +86,7 @@ exception
         raise warning 'DB Error: %', sqlerrm;
         outcode := 2;
 end;
-$$ language plpgsql security definer;
+$$ language plpgsql security definer set search_path = '';
 
 revoke insert, update, delete on table
     portfolio.technology, 
@@ -99,6 +99,11 @@ grant select on table
     portfolio.technology_project, 
     portfolio.technology_experience
 to manager_service;
+
+revoke execute on function 
+    portfolio.edit_technology(int, int, varchar, varchar, varchar, int),
+    portfolio.delete_technology(int, int)
+from public;
 
 grant execute on function 
     portfolio.edit_technology(int, int, varchar, varchar, varchar, int),

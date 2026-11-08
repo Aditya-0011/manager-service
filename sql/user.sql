@@ -37,7 +37,7 @@ exception
         raise warning 'DB Error: %', sqlerrm;
         outcode := 2;
 end;
-$$ language plpgsql security definer;
+$$ language plpgsql security definer set search_path = '';
 
 revoke insert, update, delete on table 
     portfolio.user
@@ -46,6 +46,10 @@ from manager_service;
 grant select on table 
     portfolio.user
 to manager_service;
+
+revoke execute on function 
+    portfolio.edit_user(int, text, varchar)
+from public;
 
 grant execute on function 
     portfolio.edit_user(int, text, varchar)

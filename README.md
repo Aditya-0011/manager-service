@@ -26,8 +26,7 @@ This section explains the technologies and physical layout of the service.
 
 - `controller/`: gRPC service implementations
 - `db/`: Database connection setup, pooling, and custom pg type registration
-- `internal/`: Internal models, faults, and timeout configurations
-- `middlewares/`: gRPC interceptors for logging and validation
+- `internal/`: Internal models and gRPC status errors (interceptors and server setup come from `grpcx` in the contracts module)
 - `sql/`: Schema definitions, stored procedures, and role grants
 - `main.go`: Application entrypoint and dependency wiring
 - `go.mod`: Dependency management
@@ -65,7 +64,10 @@ Export these variables directly in your shell environment:
 | :--- | :--- | :---: |
 | `POSTGRES_URL` | Connection string for the PostgreSQL database | **Yes** |
 | `PORT` | The port on which the gRPC server will listen (Default: `7296`) | No |
-| `INTERNAL_BIND_IP` | IP to bind the server to (Default: `0.0.0.0`) | No |
+| `INTERNAL_BIND_IP` | Private IP to listen on (the address the gateway dials). No default | **Yes** |
+| `INTERNAL_AUTH_TOKEN` | Shared secret (32+ chars) the gateway must send as `authorization: Bearer <token>`. Same value on every service and the gateway | **Yes** |
+| `INTERNAL_TLS_CERT` / `INTERNAL_TLS_KEY` | PEM certificate and key; enables TLS on the gRPC listener when both are set | No |
+| `RPC_TIMEOUT_MS` | Upper bound per RPC (default `5000`). A shorter deadline sent by the gateway wins | No |
 
 ### Running locally
 

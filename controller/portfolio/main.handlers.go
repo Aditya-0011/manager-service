@@ -1,24 +1,15 @@
 package portfolio
 
 import (
-	"manager/db"
-
 	"github.com/Aditya-0011/common/contracts/go/manager"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type (
-	portfolioServer struct {
-		manager.UnimplementedPortfolioServiceServer
-		postgres *db.PostgresParams
-	}
+type portfolioServer struct {
+	manager.UnimplementedPortfolioServiceServer
+	pool *pgxpool.Pool
+}
 
-	PortfolioServerParams struct {
-		Postgres *db.PostgresParams
-	}
-)
-
-func NewPortfolioServer(params PortfolioServerParams) *portfolioServer {
-	return &portfolioServer{
-		postgres: params.Postgres,
-	}
+func NewServer(pool *pgxpool.Pool) manager.PortfolioServiceServer {
+	return &portfolioServer{pool: pool}
 }

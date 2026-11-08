@@ -19,5 +19,5 @@ var (
 	ErrTechnologiesNotFound = status.Error(codes.NotFound, "Technologies not found")
 	ErrMessagesNotFound     = status.Error(codes.NotFound, "Messages not found")
 	ErrUserNotFound         = status.Error(codes.NotFound, "User not found")
-	ErrMessageLimit         = status.Error(codes.Aborted, "You have reached the limit of messages")
+	ErrMessageLimit         = status.Error(codes.ResourceExhausted, "You have reached the limit of messages")
 )
