@@ -28,6 +28,7 @@ This section explains the technologies and physical layout of the service.
 - `db/`: Database connection setup, pooling, and custom pg type registration
 - `internal/`: Internal models and gRPC status errors (interceptors and server setup come from `grpcx` in the contracts module)
 - `sql/`: Schema definitions, stored procedures, and role grants
+- `internal/chatmodels/`: Reads the free model list from AI Gateway, so the service needs outbound HTTPS to `ai-gateway.vercel.sh`
 - `main.go`: Application entrypoint and dependency wiring
 - `go.mod`: Dependency management
 

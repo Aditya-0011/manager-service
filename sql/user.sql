@@ -13,6 +13,7 @@ create table if not exists portfolio.user (
     id int primary key,
     about text not null,
     coverImage varchar(250) not null,
+    chatModel varchar(100) not null default '',
     updatedAt timestamptz default now()
 );
 
@@ -20,15 +21,17 @@ create or replace function portfolio.edit_user(
     in p_id int, 
     in p_about text, 
     in p_coverImage varchar, 
+    in p_chatModel varchar, 
     out outcode smallint
 )
 as $$
 begin
-    insert into portfolio.user (id, about, coverImage) 
-    values (p_id, p_about, p_coverImage)
+    insert into portfolio.user (id, about, coverImage, chatModel) 
+    values (p_id, p_about, p_coverImage, p_chatModel)
     on conflict (id) do update 
     set about = excluded.about, 
         coverImage = excluded.coverImage, 
+        chatModel = excluded.chatModel, 
         updatedAt = now();
         
     outcode := -1;
@@ -48,9 +51,9 @@ grant select on table
 to manager_service;
 
 revoke execute on function 
-    portfolio.edit_user(int, text, varchar)
+    portfolio.edit_user(int, text, varchar, varchar)
 from public;
 
 grant execute on function 
-    portfolio.edit_user(int, text, varchar)
+    portfolio.edit_user(int, text, varchar, varchar)
 to manager_service;
