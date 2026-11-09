@@ -21,5 +21,5 @@ var (
 	ErrUserNotFound          = status.Error(codes.NotFound, "User not found")
 	ErrMessageLimit          = status.Error(codes.ResourceExhausted, "You have reached the limit of messages")
 	ErrChatModelsUnavailable = status.Error(codes.Unavailable, "Could not check the model list, try again")
-	ErrChatModelNotFree      = status.Error(codes.InvalidArgument, "This model is not currently free")
+	ErrChatModelNotAllowed   = status.Error(codes.InvalidArgument, "This model is not available")
 )

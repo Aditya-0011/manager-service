@@ -80,7 +80,7 @@ func (us *userServer) EditUserDetails(ctx context.Context, req *manager.EditUser
 }
 
 func (us *userServer) GetChatModels(ctx context.Context, req *manager.SimpleRequest) (*manager.GetChatModelsResponse, error) {
-	models, err := chatmodels.ListFree(ctx)
+	models, err := chatmodels.ListAvailable(ctx)
 	if err != nil {
 		slog.LogAttrs(ctx, slog.LevelError, "error listing chat models",
 			slog.Int("userId", int(req.GetUserId())),
@@ -115,7 +115,7 @@ func (us *userServer) checkChatModel(ctx context.Context, req *manager.EditUserD
 		return nil
 	}
 
-	models, err := chatmodels.ListFree(ctx)
+	models, err := chatmodels.ListAvailable(ctx)
 	if err != nil {
 		slog.LogAttrs(ctx, slog.LevelError, "error listing chat models",
 			slog.Int("userId", int(req.GetUserId())),
@@ -123,10 +123,10 @@ func (us *userServer) checkChatModel(ctx context.Context, req *manager.EditUserD
 		)
 		return faults.ErrChatModelsUnavailable
 	}
-	for _, free := range models {
-		if free.ID == model {
+	for _, available := range models {
+		if available.ID == model {
 			return nil
 		}
 	}
-	return faults.ErrChatModelNotFree
+	return faults.ErrChatModelNotAllowed
 }

@@ -35,7 +35,7 @@ type catalog struct {
 	} `json:"data"`
 }
 
-func ListFree(ctx context.Context) ([]Model, error) {
+func ListAvailable(ctx context.Context) ([]Model, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, modelsURL, nil)
 	if err != nil {
 		return nil, err
