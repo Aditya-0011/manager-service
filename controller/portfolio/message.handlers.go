@@ -14,7 +14,7 @@ func (ps *portfolioServer) GetMessages(ctx context.Context, req *manager.SimpleR
 	rows, err := ps.pool.Query(ctx, query, req.GetUserId())
 	if err != nil {
 		slog.LogAttrs(ctx, slog.LevelError, "error querying database",
-			slog.Int64("userId", int64(req.GetUserId())),
+			slog.Int("userId", int(req.GetUserId())),
 			slog.String("error", err.Error()),
 		)
 		return nil, faults.ErrInternal
@@ -33,7 +33,7 @@ func (ps *portfolioServer) GetMessages(ctx context.Context, req *manager.SimpleR
 		err := rows.Scan(&id, &name, &email, &messages)
 		if err != nil {
 			slog.LogAttrs(ctx, slog.LevelError, "error scanning rows",
-				slog.Int64("userId", int64(req.GetUserId())),
+				slog.Int("userId", int(req.GetUserId())),
 				slog.String("error", err.Error()),
 			)
 			return nil, faults.ErrInternal
@@ -49,7 +49,7 @@ func (ps *portfolioServer) GetMessages(ctx context.Context, req *manager.SimpleR
 
 	if err := rows.Err(); err != nil {
 		slog.LogAttrs(ctx, slog.LevelError, "error iterating rows",
-			slog.Int64("userId", int64(req.GetUserId())),
+			slog.Int("userId", int(req.GetUserId())),
 			slog.String("error", err.Error()),
 		)
 		return nil, faults.ErrInternal
@@ -68,7 +68,7 @@ func (ps *portfolioServer) AddMessage(ctx context.Context, req *manager.AddMessa
 	err := ps.pool.QueryRow(ctx, query, req.GetUserId(), req.GetName(), req.GetEmail(), req.GetMessage()).Scan(&outcode)
 	if err != nil {
 		slog.LogAttrs(ctx, slog.LevelError, "error querying database",
-			slog.Int64("userId", int64(req.GetUserId())),
+			slog.Int("userId", int(req.GetUserId())),
 			slog.String("error", err.Error()),
 		)
 		return nil, faults.ErrInternalCreate
@@ -95,7 +95,7 @@ func (ps *portfolioServer) DeleteMessage(ctx context.Context, req *manager.Delet
 	if err != nil {
 		slog.LogAttrs(ctx, slog.LevelError, "error querying database",
 			slog.String("messageId", req.GetId()),
-			slog.Int64("userId", int64(req.GetUserId())),
+			slog.Int("userId", int(req.GetUserId())),
 			slog.String("error", err.Error()),
 		)
 		return nil, faults.ErrInternalDelete

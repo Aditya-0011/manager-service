@@ -11,7 +11,7 @@ A highly relational, strictly-typed Headless CMS built to manage portfolio data.
 The manager service operates as the core Headless Portfolio CMS. It models and manages user profiles, work experiences, showcase projects, technologies, and incoming contact messages. It orchestrates complex timeline histories and relational tagging purely through locked-down PostgreSQL stored procedures.
 
 > [!NOTE]
-> The database schema and service architecture natively support multi-tenancy and multiple users, allowing seamless scaling if the platform expands to additional accounts.
+> The database schema and service architecture are multi-user: every row belongs to its owning user, so each tenant with Manager access runs a separate portfolio.
 
 ## Architecture
 
@@ -42,7 +42,7 @@ This section outlines the capabilities of the manager service.
 
 ## Database security
 
-- Operates strictly under the `portfolio` schema
+- Operates strictly under the `portfolio` schema of the shared `infra` database
 - Connects using the `manager_service` database role, which does **not** have direct `INSERT`, `UPDATE`, or `DELETE` permissions on tables
 - All complex writes are handled safely via strictly defined database functions
 
@@ -77,7 +77,7 @@ Run the service using the Go CLI:
 go run main.go
 ```
 
-To watch for file changes and automatically rebuild and restart the server, use [air](https://github.com/cosmtrek/air):
+To watch for file changes and automatically rebuild and restart the server, use [air](https://github.com/air-verse/air):
 
 ```bash
 go install github.com/air-verse/air@latest
@@ -86,4 +86,4 @@ air
 
 ## Deployment
 
-The service is containerized and leverages GitHub Actions (`.github/workflows/main.yml`) for automated builds and deployment to a remote VM using Podman.
+The service is containerized and leverages a manually triggered GitHub Actions workflow (`.github/workflows/main.yml`, `workflow_dispatch`) for builds and deployment to a remote VM using Podman.

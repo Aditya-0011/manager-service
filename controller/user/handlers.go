@@ -37,7 +37,7 @@ func (us *userServer) GetUserDetails(ctx context.Context, req *manager.SimpleReq
 			return &manager.GetUserDetailsResponse{}, nil
 		}
 		slog.LogAttrs(ctx, slog.LevelError, "error querying database",
-			slog.Int64("userId", int64(req.GetUserId())),
+			slog.Int("userId", int(req.GetUserId())),
 			slog.String("error", err.Error()),
 		)
 		return nil, faults.ErrInternal
@@ -58,7 +58,7 @@ func (us *userServer) EditUserDetails(ctx context.Context, req *manager.EditUser
 	err := us.pool.QueryRow(ctx, query, req.GetUserId(), req.GetAbout(), req.GetCoverImage()).Scan(&outcode)
 	if err != nil {
 		slog.LogAttrs(ctx, slog.LevelError, "error updating user",
-			slog.Int64("userId", int64(req.GetUserId())),
+			slog.Int("userId", int(req.GetUserId())),
 			slog.String("error", err.Error()),
 		)
 		return nil, faults.ErrInternalUpdate

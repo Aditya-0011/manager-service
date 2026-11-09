@@ -26,7 +26,7 @@ func (ps *portfolioServer) GetTechnologies(ctx context.Context, req *manager.Sim
 
 	if err != nil {
 		slog.LogAttrs(ctx, slog.LevelError, "error querying database",
-			slog.Int64("userId", int64(req.GetUserId())),
+			slog.Int("userId", int(req.GetUserId())),
 			slog.String("error", err.Error()),
 		)
 		return nil, faults.ErrInternal
@@ -41,14 +41,14 @@ func (ps *portfolioServer) GetTechnologies(ctx context.Context, req *manager.Sim
 			name             string
 			imageUrl         string
 			fallbackImageUrl string
-			category         int8
+			category         int16
 			updatedAt        time.Time
 		)
 
 		err := rows.Scan(&id, &name, &imageUrl, &fallbackImageUrl, &category, &updatedAt)
 		if err != nil {
 			slog.LogAttrs(ctx, slog.LevelError, "error scanning rows",
-				slog.Int64("userId", int64(req.GetUserId())),
+				slog.Int("userId", int(req.GetUserId())),
 				slog.String("error", err.Error()),
 			)
 			return nil, faults.ErrInternal
@@ -66,7 +66,7 @@ func (ps *portfolioServer) GetTechnologies(ctx context.Context, req *manager.Sim
 
 	if err := rows.Err(); err != nil {
 		slog.LogAttrs(ctx, slog.LevelError, "error iterating rows",
-			slog.Int64("userId", int64(req.GetUserId())),
+			slog.Int("userId", int(req.GetUserId())),
 			slog.String("error", err.Error()),
 		)
 		return nil, faults.ErrInternal
@@ -92,7 +92,7 @@ func (ps *portfolioServer) CreateTechnology(ctx context.Context, req *manager.Te
 	).Scan(&outcode)
 	if err != nil {
 		slog.LogAttrs(ctx, slog.LevelError, "error querying database",
-			slog.Int64("userId", int64(req.GetUserId())),
+			slog.Int("userId", int(req.GetUserId())),
 			slog.String("error", err.Error()),
 		)
 		return nil, faults.ErrInternalCreate
@@ -123,8 +123,8 @@ func (ps *portfolioServer) UpdateTechnology(ctx context.Context, req *manager.Te
 	).Scan(&outcode)
 	if err != nil {
 		slog.LogAttrs(ctx, slog.LevelError, "error querying database",
-			slog.Int64("technologyId", int64(req.GetId())),
-			slog.Int64("userId", int64(req.GetUserId())),
+			slog.Int("technologyId", int(req.GetId())),
+			slog.Int("userId", int(req.GetUserId())),
 			slog.String("error", err.Error()),
 		)
 		return nil, faults.ErrInternalUpdate
@@ -150,8 +150,8 @@ func (ps *portfolioServer) DeleteTechnology(ctx context.Context, req *manager.De
 	err := ps.pool.QueryRow(ctx, query, req.GetId(), req.GetUserId()).Scan(&outcode)
 	if err != nil {
 		slog.LogAttrs(ctx, slog.LevelError, "error querying database",
-			slog.Int64("technologyId", int64(req.GetId())),
-			slog.Int64("userId", int64(req.GetUserId())),
+			slog.Int("technologyId", int(req.GetId())),
+			slog.Int("userId", int(req.GetUserId())),
 			slog.String("error", err.Error()),
 		)
 		return nil, faults.ErrInternalDelete

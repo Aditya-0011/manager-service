@@ -65,7 +65,7 @@ func (ps *portfolioServer) GetExperiences(ctx context.Context, req *manager.Simp
 	rows, err := ps.pool.Query(ctx, query, req.GetUserId())
 	if err != nil {
 		slog.LogAttrs(ctx, slog.LevelError, "error querying database",
-			slog.Int64("userId", int64(req.GetUserId())),
+			slog.Int("userId", int(req.GetUserId())),
 			slog.String("error", err.Error()),
 		)
 		return nil, faults.ErrInternal
@@ -89,7 +89,7 @@ func (ps *portfolioServer) GetExperiences(ctx context.Context, req *manager.Simp
 		err := rows.Scan(&id, &company, &start, &end, &tenure, &updatedAt, &techBytes, &posBytes)
 		if err != nil {
 			slog.LogAttrs(ctx, slog.LevelError, "error scanning rows",
-				slog.Int64("userId", int64(req.GetUserId())),
+				slog.Int("userId", int(req.GetUserId())),
 				slog.String("error", err.Error()),
 			)
 			return nil, faults.ErrInternal
@@ -137,7 +137,7 @@ func (ps *portfolioServer) GetExperiences(ctx context.Context, req *manager.Simp
 
 	if err := rows.Err(); err != nil {
 		slog.LogAttrs(ctx, slog.LevelError, "error iterating rows",
-			slog.Int64("userId", int64(req.GetUserId())),
+			slog.Int("userId", int(req.GetUserId())),
 			slog.String("error", err.Error()),
 		)
 		return nil, faults.ErrInternal
@@ -179,7 +179,7 @@ func (ps *portfolioServer) CreateExperience(ctx context.Context, req *manager.Ex
 	).Scan(&outcode)
 	if err != nil {
 		slog.LogAttrs(ctx, slog.LevelError, "error querying database",
-			slog.Int64("userId", int64(req.GetUserId())),
+			slog.Int("userId", int(req.GetUserId())),
 			slog.String("error", err.Error()),
 		)
 		return nil, faults.ErrInternalCreate
@@ -232,8 +232,8 @@ func (ps *portfolioServer) UpdateExperience(ctx context.Context, req *manager.Ex
 	).Scan(&outcode)
 	if err != nil {
 		slog.LogAttrs(ctx, slog.LevelError, "error querying database",
-			slog.Int64("experienceId", int64(req.GetId())),
-			slog.Int64("userId", int64(req.GetUserId())),
+			slog.Int("experienceId", int(req.GetId())),
+			slog.Int("userId", int(req.GetUserId())),
 			slog.String("error", err.Error()),
 		)
 		return nil, faults.ErrInternalUpdate
@@ -259,8 +259,8 @@ func (ps *portfolioServer) DeleteExperience(ctx context.Context, req *manager.De
 	err := ps.pool.QueryRow(ctx, query, req.GetId(), req.GetUserId()).Scan(&outcode)
 	if err != nil {
 		slog.LogAttrs(ctx, slog.LevelError, "error querying database",
-			slog.Int64("experienceId", int64(req.GetId())),
-			slog.Int64("userId", int64(req.GetUserId())),
+			slog.Int("experienceId", int(req.GetId())),
+			slog.Int("userId", int(req.GetUserId())),
 			slog.String("error", err.Error()),
 		)
 		return nil, faults.ErrInternalDelete
