@@ -179,10 +179,10 @@ begin
         v_months := v_months % 12;
         
         if v_years > 0 then
-            v_tenure := v_years || ' yrs ';
+            v_tenure := v_years || case when v_years = 1 then ' yr ' else ' yrs ' end;
         end if;
         if v_months > 0 then
-            v_tenure := v_tenure || v_months || ' mos';
+            v_tenure := v_tenure || v_months || case when v_months = 1 then ' mo' else ' mos' end;
         end if;
         v_tenure := trim(v_tenure);
     end if;

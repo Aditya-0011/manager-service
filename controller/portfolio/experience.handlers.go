@@ -351,11 +351,18 @@ func calculateTotalTenure(positions []*manager.Position) string {
 	months := totalMonths % 12
 
 	if years > 0 && months > 0 {
-		return fmt.Sprintf("%d yrs %d mos", years, months)
+		return unitCount(years, "yr", "yrs") + " " + unitCount(months, "mo", "mos")
 	} else if years > 0 {
-		return fmt.Sprintf("%d yrs", years)
+		return unitCount(years, "yr", "yrs")
 	}
-	return fmt.Sprintf("%d mos", months)
+	return unitCount(months, "mo", "mos")
+}
+
+func unitCount(n int, singular, plural string) string {
+	if n == 1 {
+		return fmt.Sprintf("%d %s", n, singular)
+	}
+	return fmt.Sprintf("%d %s", n, plural)
 }
 
 func validatePosition(startStr string, endStr *string, index int) error {
